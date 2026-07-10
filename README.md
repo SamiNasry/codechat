@@ -37,7 +37,7 @@ sudo apt install tmux              # Linux
 brew install tmux                  # macOS
 
 # 2 — CodeChat (downloads a prebuilt binary, ~5 seconds)
-curl -fsSL https://raw.githubusercontent.com/YOURUSER/codechat/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SamiNasry/codechat/main/install.sh | bash
 
 # 3 — go!
 codechat
@@ -161,7 +161,7 @@ CodeChat/
 # Rust toolchain (once): https://rustup.rs
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-git clone https://github.com/YOURUSER/codechat
+git clone https://github.com/SamiNasry/codechat
 cd codechat/tui
 cargo build --release          # ~2 minutes, no system libraries needed
 
