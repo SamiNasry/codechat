@@ -36,11 +36,11 @@ Then, three commands:
 sudo apt install tmux              # Linux
 brew install tmux                  # macOS
 
-# 2 — CodeChat (downloads a prebuilt binary, ~5 seconds)
+# 2 — CodeChat (downloads a prebuilt binary, sets everything up)
 curl -fsSL https://raw.githubusercontent.com/SamiNasry/codechat/main/install.sh | bash
 
-# 3 — go!
-codechat
+# 3 — open a NEW terminal (so the alias loads), then go!
+claude --chat
 ```
 
 **That's it.** Your terminal splits: Claude Code on the left, the chat strip
@@ -54,22 +54,23 @@ Earth, live.
 > single static binary for your OS. If it can't find one for your platform it
 > falls back to building from source (needs [Rust](https://rustup.rs)).
 
-### Recommended: one alias
+### The whole interface is one flag
 
-Add this line to `~/.bashrc` (or `~/.zshrc`), then open a new terminal:
+| you type          | you get                                  |
+| ----------------- | ---------------------------------------- |
+| `claude …`        | plain Claude Code, byte-for-byte vanilla |
+| `claude --chat …` | Claude Code **+ the worldwide chat**     |
+
+The installer makes this work by adding a single line to your shell config
+(`~/.bashrc` / `~/.zshrc`):
 
 ```bash
 alias claude='codechat --no-chat'
 ```
 
-| you type          | you get                                  |
-| ----------------- | ---------------------------------------- |
-| `claude …`        | plain Claude Code, byte-for-byte vanilla |
-| `claude --chat …` | Claude Code **+ the chat pane**          |
-| `codechat …`      | Claude Code **+ the chat pane**          |
-
 Every other argument goes straight to Claude Code untouched —
-`claude --chat --model opus -p "hi"` works exactly as you'd expect.
+`claude --chat --model opus -p "hi"` works exactly as you'd expect. Don't
+want the alias? Delete that line; nothing else changes.
 
 ---
 
@@ -81,14 +82,14 @@ Every other argument goes straight to Claude Code untouched —
   newest message. New messages never yank you down while you're reading.
 - **Close the chat** — click the chat pane, press `Ctrl-C` (or type `/quit`).
   Claude Code instantly expands to full width.
-- **Reopen it** — `codechat --chat-only` from any pane, or just launch
-  `codechat` again next time.
+- **Reopen it** — `claude --chat-only` from any pane, or just launch
+  `claude --chat` again next time.
 - **Quit Claude Code** — the whole thing closes, chat included.
 - **Select text** — `Shift+drag` (plain drag is used for scrolling).
 - **Change your name** — edit `~/.codechat/config.json`.
-- **Chat width** — `CODECHAT_WIDTH=40 codechat` (default 32 columns).
-- Already a tmux user? `codechat` inside your session just adds the pane to
-  your current window. Your config and bindings are never touched.
+- **Chat width** — `CODECHAT_WIDTH=40 claude --chat` (default 32 columns).
+- Already a tmux user? `claude --chat` inside your session just adds the pane
+  to your current window. Your config and bindings are never touched.
 
 ### Want to see it work right now, alone?
 
@@ -246,7 +247,7 @@ affected, and new messages start accumulating again immediately.
 
 | Symptom | Fix |
 | --- | --- |
-| `error: unknown option '--chat'` | The alias isn't set up — `--chat` reached the real claude. Add `alias claude='codechat --no-chat'` to your shell rc and open a new terminal, or just run `codechat`. |
+| `error: unknown option '--chat'` | The alias isn't loaded in this terminal — open a **new** terminal (or `source ~/.bashrc`). If you installed manually without the installer, add `alias claude='codechat --no-chat'` to your shell rc. |
 | `codechat: tmux is required` | Install tmux (see top). There is no non-tmux mode. |
 | `codechat: chat binary 'codechat-tui' not found` | Rerun the installer, or point at it: `export CODECHAT_TUI_BIN=/path/to/codechat-tui`. |
 | Chat says "reconnecting…" forever | Run `codechat-tui --smoke`. Usually the backend is paused (operator: dashboard → **Restore project**) or your `~/.codechat/config.json` has broken override values (delete the `supabaseUrl`/`supabaseAnonKey` lines to go back to the built-in backend). |

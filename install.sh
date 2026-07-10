@@ -10,7 +10,9 @@
 #      there's no prebuilt for your platform).
 #   2. Downloads the codechat wrapper script.
 #   3. Installs both into ~/.local/bin.
-#   4. Tells you exactly what's still missing (tmux? claude? PATH?).
+#   4. Adds the `claude --chat` alias to your shell config, so plain `claude`
+#      stays vanilla and `claude --chat` opens the chat pane.
+#   5. Tells you exactly what's still missing (tmux? claude? PATH?).
 #
 # Override knobs:
 #   CODECHAT_REPO=user/repo       install from a fork
@@ -75,6 +77,34 @@ install -m 755 "$TMP/codechat-tui" "$BIN_DIR/codechat-tui"
 install -m 755 "$TMP/codechat"     "$BIN_DIR/codechat"
 say "installed codechat + codechat-tui into $BIN_DIR"
 
+# ---- set up `claude --chat` ---------------------------------------------------
+# One alias makes plain `claude` stay 100% vanilla while `claude --chat`
+# opens the chat (inside the wrapper, the last chat flag wins). We only touch
+# a file if it has no `claude` alias already.
+ALIAS_LINE="alias claude='codechat --no-chat'"
+
+setup_alias() { # $1 = rc file; returns 0 if the alias is (now) present in it
+  [ -e "$1" ] || return 1
+  if ! grep -q "alias claude=" "$1"; then
+    printf '\n# CodeChat: plain `claude` stays vanilla; `claude --chat` opens the worldwide chat\n%s\n' \
+      "$ALIAS_LINE" >> "$1"
+    say "added the claude --chat alias to ${1/#$HOME/~}"
+  fi
+  return 0
+}
+
+alias_ok=0
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+  if setup_alias "$rc"; then alias_ok=1; fi
+done
+if [ "$alias_ok" = 0 ]; then
+  # no rc file existed at all — create the one matching the login shell
+  case "${SHELL:-/bin/bash}" in
+    */zsh) touch "$HOME/.zshrc"  && setup_alias "$HOME/.zshrc"  || true ;;
+    *)     touch "$HOME/.bashrc" && setup_alias "$HOME/.bashrc" || true ;;
+  esac
+fi
+
 # ---- final checks: tell the user exactly what's left -------------------------
 missing=0
 
@@ -101,9 +131,10 @@ esac
 
 echo
 if [ "$missing" = 0 ]; then
-  say "✔ all set! Run:  codechat"
+  say "✔ all set! Open a NEW terminal (so the alias loads), then:"
 else
-  say "fix the ⚠ items above, then run:  codechat"
+  say "fix the ⚠ items above, open a NEW terminal, then:"
 fi
-say "tip: add  alias claude='codechat --no-chat'  to your shell rc,"
-say "     then plain 'claude' stays vanilla and 'claude --chat' opens the chat."
+say ""
+say "    claude --chat        Claude Code + the worldwide chat"
+say "    claude               plain Claude Code, exactly as before"
