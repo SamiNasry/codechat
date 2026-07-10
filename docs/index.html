@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodeChat — don't code alone</title>
+<meta name="description" content="A worldwide chat room in your terminal or VS Code, next to Claude Code. One room, no accounts, one line to install.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239146ff' stroke-width='2'%3E%3Cpath d='M21 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 3V11.5A7.5 7.5 0 0 1 10.5 4h3A7.5 7.5 0 0 1 21 11.5z'/%3E%3C/svg%3E">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f0f11;
+    color: #e6e6e9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 20px 64px;
+  }
+  main { width: 100%; max-width: 680px; }
+  h1 { font-size: 34px; letter-spacing: -0.5px; }
+  h1 span { color: #9146ff; }
+  .tag { color: #a5a5b0; margin: 8px 0 32px; font-size: 17px; }
+  pre.demo {
+    background: #17171a;
+    border: 1px solid #26262b;
+    border-radius: 10px;
+    padding: 18px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #c9c9d1;
+    overflow-x: auto;
+    margin-bottom: 40px;
+  }
+  pre.demo .p { color: #bf94ff; }
+  pre.demo .a { color: #62b0ff; }
+  pre.demo .b { color: #58c98a; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: #a5a5b0; margin: 34px 0 12px; }
+  .card {
+    background: #17171a;
+    border: 1px solid #26262b;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .card h3 { font-size: 16px; margin-bottom: 4px; }
+  .card p { color: #a5a5b0; font-size: 14px; margin-bottom: 10px; }
+  .cmd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #0c0c0e;
+    border: 1px solid #26262b;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .cmd code {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #d7d7de;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .cmd button {
+    background: #9146ff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .cmd button:hover { background: #772ce8; }
+  .after { color: #a5a5b0; font-size: 13px; margin-top: 10px; }
+  .after code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #0c0c0e;
+    border: 1px solid #26262b;
+    padding: 1px 6px;
+    border-radius: 5px;
+    color: #d7d7de;
+  }
+  .notes { color: #a5a5b0; font-size: 14px; }
+  .notes li { margin: 6px 0 6px 18px; }
+  footer { margin-top: 44px; color: #a5a5b0; font-size: 14px; }
+  a { color: #bf94ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Code<span>Chat</span></h1>
+  <p class="tag">Coding with an AI gets quiet. This is a worldwide chat room that sits
+  next to Claude Code — in your terminal or your editor. No accounts. One room. One line to install.</p>
+
+  <pre class="demo">┌─────────────────────────────────────┬───────────────────┐
+│                                     │ <span class="p">▌CodeChat</span>      12● │
+│                                     │ 14:02 <span class="a">alice</span>: kena │
+│   Claude Code                       │   3am here, claude│
+│   (works exactly as usual)         │   still cooking   │
+│                                     │ 14:03 <span class="b">bob</span>: same lol│
+│                                     │                   │
+│                                     │ > _               │
+└─────────────────────────────────────┴───────────────────┘</pre>
+
+  <h2>Terminal — Linux &amp; macOS</h2>
+  <div class="card">
+    <h3>One line</h3>
+    <p>Needs <a href="https://claude.com/claude-code">Claude Code</a> and tmux
+       (<code style="font-size:12px">sudo apt install tmux</code> / <code style="font-size:12px">brew install tmux</code>).</p>
+    <div class="cmd">
+      <code id="cmd-cli">curl -fsSL https://raw.githubusercontent.com/SamiNasry/codechat/main/install.sh | bash</code>
+      <button data-copy="cmd-cli">copy</button>
+    </div>
+    <p class="after">Then open a new terminal and run <code>claude --chat</code>.
+       Plain <code>claude</code> stays exactly as it was.</p>
+  </div>
+
+  <h2>VS Code — any OS, Windows too</h2>
+  <div class="card">
+    <h3>One line</h3>
+    <p>A chat panel in your sidebar. Same worldwide room as the terminal version.</p>
+    <div class="cmd">
+      <code id="cmd-vsc">curl -L https://github.com/SamiNasry/codechat/releases/latest/download/codechat.vsix -o codechat.vsix &amp;&amp; code --install-extension codechat.vsix</code>
+      <button data-copy="cmd-vsc">copy</button>
+    </div>
+    <p class="after">Then click the CodeChat bubble in the activity bar.</p>
+  </div>
+
+  <h2>What you should know</h2>
+  <ul class="notes">
+    <li>Everyone who installs it is in the same room. Pick a name and say hi.</li>
+    <li>It's public — don't paste secrets or private code.</li>
+    <li>New joiners see the last 50 messages; at most ~1000 recent ones exist anywhere.</li>
+    <li>Open source, one small binary, no telemetry, no accounts.</li>
+  </ul>
+
+  <footer>
+    <a href="https://github.com/SamiNasry/codechat">Source on GitHub</a>
+  </footer>
+</main>
+<script>
+  for (const btn of document.querySelectorAll("[data-copy]")) {
+    btn.addEventListener("click", async () => {
+      const text = document.getElementById(btn.dataset.copy).textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "copied";
+        setTimeout(() => (btn.textContent = "copy"), 1500);
+      } catch {}
+    });
+  }
+</script>
+</body>
+</html>

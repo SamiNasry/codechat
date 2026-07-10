@@ -1,0 +1,186 @@
+/* CodeChat webview — uses VS Code theme variables so it looks native in
+ * light and dark themes, with the CodeChat purple as the only accent. */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  flex: 0 0 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.2));
+}
+
+header .title {
+  flex: 1;
+  font-weight: 700;
+  color: #9146ff;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e91916;
+  flex: 0 0 auto;
+}
+
+.dot.online {
+  background: #1db954;
+}
+
+#online-count {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+#setup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.2));
+}
+
+#setup input {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  outline: none;
+}
+
+#setup input:focus {
+  border-color: #9146ff;
+}
+
+#setup button {
+  background: #9146ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 7px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#setup button:hover {
+  background: #772ce8;
+}
+
+.error {
+  color: var(--vscode-errorForeground, #f66);
+  font-size: 12px;
+  min-height: 14px;
+}
+
+.hint {
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.msg {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.msg .body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.msg .name {
+  font-weight: 700;
+}
+
+.msg.you .name::after {
+  content: " (you)";
+  font-weight: 400;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.msg .time {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.45;
+}
+
+.msg:hover .time {
+  opacity: 0.9;
+}
+
+.msg.system,
+.msg.system .body {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+#composer {
+  flex: 0 0 auto;
+  padding: 8px 10px 10px;
+}
+
+#input {
+  width: 100%;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  outline: none;
+}
+
+#input:focus {
+  border-color: #9146ff;
+}
+
+#input:disabled {
+  opacity: 0.5;
+}
+
+.hidden {
+  display: none !important;
+}

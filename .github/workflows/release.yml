@@ -47,8 +47,23 @@ jobs:
           name: codechat-tui-${{ matrix.target }}
           path: codechat-tui-${{ matrix.target }}
 
+  vsix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package the VS Code extension
+        run: |
+          cd vscode
+          npx --yes @vscode/vsce package -o ../codechat.vsix
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codechat.vsix
+          path: codechat.vsix
+
   release:
-    needs: build
+    needs: [build, vsix]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +77,7 @@ jobs:
         with:
           files: |
             codechat-tui-*
+            codechat.vsix
             codechat
             install.sh
             supabase/schema.sql

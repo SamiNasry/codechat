@@ -1,0 +1,40 @@
+{
+  "name": "codechat",
+  "displayName": "CodeChat",
+  "description": "A worldwide chat room in your sidebar — so coding with an AI doesn't feel lonely. Same room as the CodeChat terminal client.",
+  "version": "0.1.1",
+  "publisher": "SamiNasry",
+  "license": "SEE LICENSE IN README.md",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SamiNasry/codechat"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codechat",
+          "title": "CodeChat",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "codechat": [
+        {
+          "type": "webview",
+          "id": "codechat.chat",
+          "name": "worldwide chat"
+        }
+      ]
+    }
+  }
+}

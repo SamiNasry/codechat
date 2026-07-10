@@ -6,6 +6,8 @@ pick a name and you're in.
 
 Coding with an AI gets quiet. This fixes that.
 
+Website: [saminasry.github.io/codechat](https://saminasry.github.io/codechat/)
+
 ```
 ┌─────────────────────────────────────┬──────────────┐
 │                                     │ CodeChat  12 │
@@ -41,6 +43,16 @@ thing it touches besides its own two files in `~/.local/bin`.
 No compilers or libraries needed; the installer downloads one static binary.
 
 Uninstall: delete `~/.local/bin/codechat*`, `~/.codechat`, and the alias line.
+
+### VS Code instead of a terminal?
+
+```bash
+curl -L https://github.com/SamiNasry/codechat/releases/latest/download/codechat.vsix -o codechat.vsix && code --install-extension codechat.vsix
+```
+
+Then click the CodeChat bubble in the activity bar. Same room, same username
+(it reads the same `~/.codechat/config.json`), works on Windows too, no tmux
+needed. The extension lives in `vscode/`.
 
 ## Using it
 
