@@ -24,7 +24,9 @@ jobs:
             target: aarch64-unknown-linux-musl
           - os: macos-latest # Apple Silicon
             target: aarch64-apple-darwin
-          - os: macos-13 # Intel
+          # Intel macOS is cross-compiled from the Apple Silicon runner:
+          # the retired macos-13 (Intel) runners queue forever.
+          - os: macos-latest
             target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
