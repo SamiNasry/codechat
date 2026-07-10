@@ -1,21 +1,19 @@
-# CodeChat
+# CodeChat 💬
 
-A worldwide chat room that lives **inside your terminal, right next to Claude
-Code**. Run `codechat` instead of `claude` and your terminal splits: Claude
-Code keeps almost all the space, and a slim chat strip appears on the right —
-everyone running CodeChat, anywhere on Earth, is in that one room.
+**A worldwide chat room inside your terminal, right next to Claude Code.**
 
-Coding with an AI is powerful but quiet. CodeChat exists so it doesn't have
-to be lonely: while Claude works, there's a little crowd of fellow builders
-from around the world talking in the corner of your terminal.
+Coding with an AI is powerful but quiet. CodeChat exists so it doesn't have to
+be lonely: while Claude works, there's a little crowd of fellow builders from
+around the world talking in the corner of your terminal. One global room, no
+accounts, no setup — pick a name and say hi.
 
 ```
 ┌────────────────────────────────────────────┬──────────────┐
 │                                            │ ▌CodeChat 12●│
 │                                            │ 14:02 alice: │
-│   Claude Code — full height, ~85% width,   │   anyone got │
-│   exactly as it looks today                │   tauri v2   │
-│                                            │   working?   │
+│   Claude Code — exactly as it              │   anyone got │
+│   looks today, full height,                │   tauri v2   │
+│   ~85% of the width                        │   working?   │
 │                                            │ 14:03 bob:   │
 │                                            │   yes! check │
 │                                            │   the docs   │
@@ -24,65 +22,98 @@ from around the world talking in the corner of your terminal.
 └────────────────────────────────────────────┴──────────────┘
 ```
 
-- **One global room.** No accounts, no channels, no setup. Pick a username
-  once and you're in. The public backend is baked into the binary.
-- **Claude Code is untouched.** It runs exactly as normal in its own pane.
-  Close the chat any time with `Ctrl-C` inside it — Claude Code instantly
-  expands to full width.
-- **You join mid-conversation, not an empty room.** The last 50 messages
-  load above a "— you're caught up —" marker; scroll up to read them.
-  (Live delivery is ephemeral pub/sub; only a small rolling window of ~1000
-  recent messages is kept, in the operator's Supabase table.)
-- **One small binary.** The chat client is pure Rust — no Node, no GTK,
-  no system libraries.
-- **tmux is required.** That's the one hard dependency — it's what puts both
-  programs in one terminal window. `sudo apt install tmux` / `brew install tmux`.
-
-Works on **Linux** and **macOS**.
+Works on **Linux** and **macOS** (on Windows, use WSL).
 
 ---
 
-## Quick install (from GitHub)
+## ⚡ Install in 60 seconds
+
+You need [Claude Code](https://claude.com/claude-code) already installed.
+Then, three commands:
 
 ```bash
-# 1. tmux (the one dependency)
-sudo apt install tmux        # macOS: brew install tmux
+# 1 — tmux (the one dependency; it's what splits your terminal)
+sudo apt install tmux              # Linux
+brew install tmux                  # macOS
 
-# 2. CodeChat — downloads a prebuilt binary from the latest release
+# 2 — CodeChat (downloads a prebuilt binary, ~5 seconds)
 curl -fsSL https://raw.githubusercontent.com/YOURUSER/codechat/main/install.sh | bash
 
-# 3. go
+# 3 — go!
 codechat
 ```
 
-> Replace `YOURUSER` with the actual GitHub account once the repo is
-> published. No Rust needed — the installer grabs a prebuilt binary for your
-> OS/arch and only falls back to a source build if none exists. Building from
-> source instead? See section 2 below.
+**That's it.** Your terminal splits: Claude Code on the left, the chat strip
+on the right. First launch asks for a username (2–20 characters) — press
+Enter and the dot turns green, the online count appears, and the last 50
+messages of the worldwide conversation load so you're never staring at an
+empty room. Everything you type in the chat reaches every CodeChat user on
+Earth, live.
+
+> **No Rust, no compilers, no libraries needed.** The installer fetches a
+> single static binary for your OS. If it can't find one for your platform it
+> falls back to building from source (needs [Rust](https://rustup.rs)).
+
+### Recommended: one alias
+
+Add this line to `~/.bashrc` (or `~/.zshrc`), then open a new terminal:
+
+```bash
+alias claude='codechat --no-chat'
+```
+
+| you type          | you get                                  |
+| ----------------- | ---------------------------------------- |
+| `claude …`        | plain Claude Code, byte-for-byte vanilla |
+| `claude --chat …` | Claude Code **+ the chat pane**          |
+| `codechat …`      | Claude Code **+ the chat pane**          |
+
+Every other argument goes straight to Claude Code untouched —
+`claude --chat --model opus -p "hi"` works exactly as you'd expect.
 
 ---
 
-## How the pieces fit together
+## 🕹 Using it
 
-Three parts:
+- **Type + Enter** — send (max 300 chars). Usernames get stable colors:
+  "alice" is the same color on every machine, every day.
+- **Scroll** — mouse wheel or `PageUp`/`PageDown`; `Esc` jumps back to the
+  newest message. New messages never yank you down while you're reading.
+- **Close the chat** — click the chat pane, press `Ctrl-C` (or type `/quit`).
+  Claude Code instantly expands to full width.
+- **Reopen it** — `codechat --chat-only` from any pane, or just launch
+  `codechat` again next time.
+- **Quit Claude Code** — the whole thing closes, chat included.
+- **Select text** — `Shift+drag` (plain drag is used for scrolling).
+- **Change your name** — edit `~/.codechat/config.json`.
+- **Chat width** — `CODECHAT_WIDTH=40 codechat` (default 32 columns).
+- Already a tmux user? `codechat` inside your session just adds the pane to
+  your current window. Your config and bindings are never touched.
 
-1. **`codechat` (wrapper script)** — starts a tmux session that looks like a
-   plain terminal (no status bar): Claude Code in the big left pane, the chat
-   client in a fixed 32-column right pane.
-2. **`codechat-tui` (chat client)** — a small Rust terminal app. It speaks
-   Supabase's realtime protocol directly over a WebSocket: **Broadcast** for
-   messages, **Presence** for the online counter. It never touches a database.
-3. **Supabase Realtime** — the message bus everyone shares. Its URL and
-   *publishable* key are compiled into the client — that key is a client-side
-   identifier designed to be public, not a secret.
+### Want to see it work right now, alone?
+
+The chat doesn't need Claude — simulate friends in a second terminal:
+
+```bash
+codechat-tui --username alice     # a fake user; your config isn't touched
+codechat-tui --smoke              # headless self-test: connect → send → PASS
+```
+
+Open two terminals with two names and watch the messages and online count
+move in real time.
+
+---
+
+## 🔧 How it works
+
+Three small parts:
 
 ```
    one terminal window (tmux session, invisible chrome)
 ┌──────────────────────────────┬────────────────┐
 │  claude (Claude Code CLI)    │  codechat-tui  │
 └──────────────────────────────┴───────┬────────┘
-                                       │ WebSocket:
-                                       │ Broadcast + Presence
+                                       │ WebSocket
                                        ▼
                             ┌──────────────────────┐
                             │  Supabase Realtime   │
@@ -92,347 +123,162 @@ Three parts:
                         every CodeChat user, worldwide
 ```
 
+1. **`codechat`** — a bash wrapper. Starts a tmux session that looks like a
+   plain terminal (no status bar): Claude Code big, chat strip small. Passes
+   all your arguments through to the real `claude` binary (loop-safe even if
+   you alias or symlink `claude` to it).
+2. **`codechat-tui`** — the chat client. A single ~5 MB Rust binary with zero
+   runtime dependencies that speaks Supabase's realtime protocol directly:
+   **Broadcast** for messages, **Presence** for the online counter.
+3. **Supabase Realtime** — the shared message bus. Its URL and *publishable*
+   key are baked into the binary (that key is a client-side identifier
+   designed to be public — like a radio frequency, not a password).
+
+Messages are delivered live as ephemeral pub/sub. A tiny `messages` table
+additionally keeps a rolling window of the newest ~1000 messages (older rows
+delete themselves) purely so joiners get the last 50 as context.
+
 ### Repository layout
 
 ```
 CodeChat/
 ├── codechat                 # the wrapper script (bash + tmux)
 ├── install.sh               # curl-able installer (downloads release binaries)
-├── config.example.json      # template for ~/.codechat/config.json (optional)
-├── README.md
-├── tui/                     # the chat client (Rust)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs          # terminal UI: rendering, input, config, history
-│       └── realtime.rs      # Supabase Realtime protocol (Phoenix/WebSocket)
+├── tui/                     # the chat client (Rust): UI + realtime protocol
 ├── supabase/schema.sql      # operator-run SQL: enables shared history
-├── .github/workflows/       # release automation: tag → prebuilt binaries
-├── scripts/gen_icons.py     # only used by the legacy overlay below
-├── src/ + src-tauri/        # LEGACY: earlier floating-window overlay (Tauri).
-│                            # Not part of the supported setup — kept for reference.
+├── .github/workflows/       # release automation: git tag → prebuilt binaries
+├── config.example.json      # template for ~/.codechat/config.json (optional)
+├── scripts/ src/ src-tauri/ # LEGACY: an earlier floating-window overlay
+│                            # (Tauri) — kept for reference, not supported
+└── README.md
 ```
 
 ---
 
-## 1. Prerequisites
-
-### 1a. tmux (required)
+## 🛠 Building from source (contributors / unsupported platforms)
 
 ```bash
-# Linux (Debian/Ubuntu)
-sudo apt install -y tmux
-
-# macOS
-brew install tmux
-```
-
-Verify: `tmux -V` (any 3.x is fine).
-
-### 1b. Rust + Cargo (to build; users of a prebuilt binary skip this)
-
-```bash
+# Rust toolchain (once): https://rustup.rs
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
 
-Accept the defaults, restart your terminal (or `source "$HOME/.cargo/env"`),
-then verify with `cargo --version`. Anything ≥ 1.77 works.
+git clone https://github.com/YOURUSER/codechat
+cd codechat/tui
+cargo build --release          # ~2 minutes, no system libraries needed
 
-That's it. **No system libraries are needed** — the chat client uses rustls
-with bundled certificates, so it builds and runs on a bare machine.
-
-### 1c. Claude Code
-
-`command -v claude` should print a path. If not:
-<https://claude.com/claude-code>
-
----
-
-## 2. Build
-
-```bash
-cd tui
-cargo build --release
-cd ..
-```
-
-First build takes ~1–3 minutes. The result is a single binary:
-
-```
-tui/target/release/codechat-tui
-```
-
-Quick check without the UI — a headless connectivity self-test:
-
-```bash
-./tui/target/release/codechat-tui --smoke
-# smoke: joined channel 'global-chat'
-# smoke: presence count = 1
-# smoke: PASS — broadcast round-trip OK
-```
-
-### Distributing binaries (production)
-
-Users you share this with need exactly three things: **tmux**, the
-**`codechat` script**, and the **`codechat-tui` binary** for their platform
-(plus Claude Code itself, obviously). Build the binary on each OS you target
-(Rust doesn't cross-compile between macOS/Linux out of the box):
-
-```bash
-# maximum-compatibility Linux build (static, runs on any distro):
-rustup target add x86_64-unknown-linux-musl
-cargo build --release --target x86_64-unknown-linux-musl
-```
-
-Since the backend is baked in, anyone who gets the two files is instantly in
-the same worldwide chat — zero configuration.
-
----
-
-## 3. Install
-
-Put both pieces on your `PATH`:
-
-```bash
-chmod +x codechat
+# install both pieces
 mkdir -p ~/.local/bin
-cp codechat ~/.local/bin/
-cp tui/target/release/codechat-tui ~/.local/bin/
+cp target/release/codechat-tui ../codechat ~/.local/bin/
+chmod +x ~/.local/bin/codechat
 ```
 
-If `~/.local/bin` isn't on your PATH, add this to `~/.bashrc` / `~/.zshrc`:
+Make sure `~/.local/bin` is on your PATH:
+`export PATH="$HOME/.local/bin:$PATH"` in your shell rc.
 
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-### Optional: get `claude --chat` (recommended alias)
-
-```bash
-# bash — add to ~/.bashrc        # zsh — add to ~/.zshrc
-alias claude='codechat --no-chat'
-```
-
-Then `source ~/.bashrc` (or `~/.zshrc`). Because the **last** chat flag wins,
-this gives you the best of both worlds:
-
-| you type            | you get                                  |
-| ------------------- | ---------------------------------------- |
-| `claude …`          | plain Claude Code, byte-for-byte vanilla |
-| `claude --chat …`   | Claude Code + the chat pane              |
-| `codechat …`        | Claude Code + the chat pane              |
-
-Prefer chat on *every* launch? Use `alias claude='codechat'` instead (and
-`claude --no-chat` opts out per run).
-
-This is loop-safe: the wrapper resolves the real `claude` binary on PATH and
-skips itself, so even a *symlink* named `claude` pointing at `codechat` can't
-loop. (If you go the symlink route, put it in a directory that comes earlier
-in PATH than the real binary — and never overwrite the real `claude` file
-with it.)
+Release binaries are built automatically: pushing a tag like `v0.1.0`
+triggers `.github/workflows/release.yml`, which compiles static binaries for
+Linux (x86_64 + ARM64, musl) and macOS (Apple Silicon + Intel) and attaches
+them — plus `codechat`, `install.sh` and `supabase/schema.sql` — to a GitHub
+release. `install.sh` downloads from whatever the latest release is.
 
 ---
 
-## 4. Run
+## 🗄 Operator guide (only for whoever runs the backend)
 
-```bash
-codechat                # Claude Code + chat pane — args pass through:
-codechat --model opus   # works exactly like claude --model opus
-```
+Normal users never read this section — the app ships pointing at the public
+CodeChat backend. This is for the person operating it, or anyone forking
+CodeChat into a private room.
 
-The wrapper consumes exactly three flags of its own; **everything else goes
-to Claude Code untouched** (`--model`, `-p`, `--dangerously-skip-permissions`,
-anything):
+### Creating the Supabase project (free)
 
-- `--chat` — force the chat pane on (for the `claude --chat` alias style)
-- `--no-chat` — force it off: plain Claude Code, tmux not even required
-- `--chat-only` — just open a chat pane in the current tmux window (no
-  Claude Code); this is how you reopen the chat after closing it
-
-If several are given, the last one wins.
-
-**What success looks like:**
-
-1. Your terminal becomes the split shown at the top: Claude Code left, chat
-   strip right. No tmux status bar, no visible chrome.
-2. First launch: the chat pane asks for a username (2–20 chars). Press Enter
-   and it connects — header dot turns **green** with the online count.
-3. Type in the chat pane, press **Enter** — everyone running CodeChat sees it,
-   each username in its own stable color (same colors on every machine).
-4. Scroll the chat with the mouse wheel or PageUp/PageDown (Esc jumps back to
-   the newest message). Select text with **Shift+drag** (the plain drag is
-   captured for scrolling).
-
-**Closing and reopening the chat:**
-
-- **Close:** click into the chat pane and press `Ctrl-C` (or type `/quit`).
-  The pane vanishes and Claude Code takes the full width.
-- **Reopen:** run `codechat --chat-only` from any pane in the session (e.g.
-  open a second tmux pane), or just start `codechat` again next time.
-- **Quit Claude Code** (as usual) → the whole session ends, chat included.
-- Already a tmux user? Running `codechat` inside your own session simply adds
-  the chat pane to your current window and runs Claude Code in place — your
-  config and bindings are untouched.
-
-**Width:** the chat strip defaults to 32 columns. `CODECHAT_WIDTH=40 codechat`
-changes it.
-
-### Simulating more users (testing)
-
-The chat is completely independent of Claude — you don't need a second
-Claude subscription (or even one at all) to test the room. Each extra "user"
-is just another chat client:
-
-```bash
-codechat-tui --username alice     # joins as alice, in any other terminal
-codechat-tui --username bob       # and bob, and…
-```
-
-`--username` never touches your config file, so your real name stays put.
-Open two terminals side by side and watch the messages and the online count
-move in real time. `codechat-tui --smoke` is a headless self-test that also
-reports whether shared history is enabled.
-
-### The config file (optional)
-
-`~/.codechat/config.json` is created automatically when you pick a username:
-
-```json
-{
-  "username": "your-name"
-}
-```
-
-Edit it to rename yourself. Two extra keys, `supabaseUrl` and
-`supabaseAnonKey`, point the client at a **different** backend (see below);
-absent, the built-in public backend is used.
-
----
-
-## Running your own backend (operators / forks)
-
-Normal users never need this — the app ships pointing at the public CodeChat
-backend. Read on if you **operate** that backend or are forking CodeChat.
-
-### Creating the Supabase project
-
-Supabase's free tier includes Realtime (200 concurrent connections, 2 million
-messages/month); CodeChat never writes to the database, so DB quota stays at
-zero.
-
-1. Go to <https://supabase.com>, sign up (no credit card), click **New project**.
-2. Any name, any database password (never used by CodeChat), nearest region,
+1. <https://supabase.com> → sign up (no credit card) → **New project** —
+   any name, any database password (never used by CodeChat), nearest region,
    Free plan. Wait ~2 minutes.
-3. Click the **gear icon (Project Settings)** in the left sidebar:
-   - **Data API** page → copy the **Project URL** (`https://xxxx.supabase.co`).
-   - **API Keys** page → copy the **publishable** key (`sb_publishable_...`),
-     or the legacy **`anon` `public`** key (`eyJ...`) — either works.
-     Never the `service_role`/secret key.
-4. **Realtime is on by default** for Broadcast/Presence — nothing to enable,
-   no tables to create.
+2. Gear icon (**Project Settings**) → **Data API** → copy the **Project URL**
+   (`https://xxxx.supabase.co`).
+3. **Project Settings** → **API Keys** → copy the **publishable** key
+   (`sb_publishable_...`) — or the legacy `anon public` key; either works.
+   ⚠️ Never the `service_role`/secret key.
+4. Realtime (Broadcast/Presence) is enabled by default — nothing to switch on.
 
-### Wiring it in
-
-- **Your machine only:** add `supabaseUrl` + `supabaseAnonKey` to
-  `~/.codechat/config.json`.
-- **For everyone (a fork):** edit the two `DEFAULT_SUPABASE_*` constants at
-  the top of `tui/src/main.rs` and rebuild. (The legacy overlay has the same
-  pair in `src/app.js`.)
+Wire it in: edit the two `DEFAULT_SUPABASE_*` constants at the top of
+`tui/src/main.rs` and rebuild (that's the single source of truth for the
+public backend). For a personal machine only, `supabaseUrl` /
+`supabaseAnonKey` in `~/.codechat/config.json` override the baked-in values.
 
 ### Enabling shared history (recommended)
 
-Out of the box, messages are pure pub/sub: someone who joins sees an empty
-room until the next message arrives. To give newcomers the last 50 messages
-of context, run `supabase/schema.sql` once:
+Run `supabase/schema.sql` once: Dashboard → **SQL Editor** → **New query** →
+paste the file → **Run**. It creates the `messages` table with row-level
+security (clients can only INSERT and SELECT — no edits, no deletes) and a
+self-trimming trigger that keeps only the newest ~1000 rows, so storage stays
+a few hundred KB forever. Clients detect it automatically — verify with
+`codechat-tui --smoke` ("shared history OK").
 
-1. Dashboard → **SQL Editor** → **New query**
-2. Paste the contents of [`supabase/schema.sql`](supabase/schema.sql) → **Run**
+### Wiping the history
 
-It creates a single `messages` table with row-level security (clients can
-only INSERT and SELECT — no edits, no deletes) and a self-trimming trigger
-that keeps only the newest ~1000 rows, so storage stays a few hundred KB
-forever. Clients detect the table automatically — no rebuild needed; verify
-with `codechat-tui --smoke` ("shared history OK").
+The table maintains its size on its own, but if you ever want a clean slate
+(spam cleanup, fresh launch), run this in the SQL Editor:
 
-### Production notes for operators
+```sql
+truncate table public.messages;
+```
 
-- **Capacity:** free tier = 200 concurrent clients / 2M messages per month;
-  Pro ($25/mo) = 500 concurrent / 5M, both raisable. Watch
-  **Reports → Realtime** in the dashboard.
+Notes: only you can do this (clients have no delete rights); people currently
+connected keep what's already on their screen (that's their local memory —
+up to 100 messages, gone when their pane closes); only *future joiners* are
+affected, and new messages start accumulating again immediately.
+
+### Production notes
+
+- **Capacity:** free tier = 200 concurrent clients / 2M Realtime messages
+  per month; Pro ($25/mo) = 500 / 5M, both raisable. Watch **Reports →
+  Realtime** in the dashboard.
 - **Free projects pause after ~1 week of inactivity** — every client shows a
   red dot until you click **Restore project**. For an always-on worldwide
   room, Pro (no pausing) is the safer choice.
 - **Key rotation:** if the room is abused, rotate the publishable key
-  (Project Settings → API Keys), update the constant, ship a new build. Old
-  builds stop connecting immediately.
+  (Project Settings → API Keys), update the constants, tag a new release.
+  Old builds stop connecting immediately.
 
 ---
 
-## Troubleshooting
+## 🚑 Troubleshooting
 
-### `codechat: tmux is required and was not found`
+| Symptom | Fix |
+| --- | --- |
+| `error: unknown option '--chat'` | The alias isn't set up — `--chat` reached the real claude. Add `alias claude='codechat --no-chat'` to your shell rc and open a new terminal, or just run `codechat`. |
+| `codechat: tmux is required` | Install tmux (see top). There is no non-tmux mode. |
+| `codechat: chat binary 'codechat-tui' not found` | Rerun the installer, or point at it: `export CODECHAT_TUI_BIN=/path/to/codechat-tui`. |
+| Chat says "reconnecting…" forever | Run `codechat-tui --smoke`. Usually the backend is paused (operator: dashboard → **Restore project**) or your `~/.codechat/config.json` has broken override values (delete the `supabaseUrl`/`supabaseAnonKey` lines to go back to the built-in backend). |
+| "no shared history — live messages only" | Not an error — the operator hasn't run `supabase/schema.sql` (or the REST call blipped). Live chat is unaffected. |
+| Colors look washed out | Your terminal needs truecolor inside tmux. Add `set -as terminal-features ',*:RGB'` to `~/.tmux.conf`, then `tmux kill-server`. |
+| Online count stuck at `–` | You're disconnected — see "reconnecting" above. Presence takes ~10 s to re-sync after network blips. |
+| Can't select text in the chat | Use `Shift+drag` — plain drag is captured for scrolling. |
+| Claude Code doesn't start | `command -v claude` must print a path in a fresh shell. |
+| Old messages still visible after the operator wiped the DB | That's your pane's local memory (last 100 msgs). Close the pane and reopen — the wipe only affects what future joiners load. |
 
-Exactly what it says — install tmux (section 1a) and rerun. There is no
-non-tmux mode.
+### Uninstall
 
-### `codechat: chat binary 'codechat-tui' not found`
-
-Build it (section 2) and either install it next to the script (section 3) or
-point at it directly: `export CODECHAT_TUI_BIN=/path/to/codechat-tui`.
-
-### The chat pane shows "reconnecting…" forever
-
-- Run the self-test to see what's happening: `codechat-tui --smoke`.
-- Most likely the **public backend is paused or down** — if you're the
-  operator, check the Supabase dashboard (*Paused* → **Restore project**).
-- If you added backend overrides to `~/.codechat/config.json`, check them:
-  URL exactly `https://xxxx.supabase.co` (no trailing slash, not the
-  dashboard URL), the full publishable/anon key. Deleting both lines returns
-  you to the built-in backend.
-
-### Username colors look wrong / washed out
-
-The client uses 24-bit color. Inside tmux that requires the outer terminal to
-support truecolor (nearly all modern ones do). If colors are off, add to
-`~/.tmux.conf`:
-
+```bash
+rm ~/.local/bin/codechat ~/.local/bin/codechat-tui
+rm -rf ~/.codechat                      # your username config
+# remove the alias line from ~/.bashrc / ~/.zshrc if you added it
 ```
-set -as terminal-features ',*:RGB'
-```
-
-then restart tmux (`tmux kill-server`).
-
-### The online count seems stuck
-
-It updates on presence sync events and can lag a few seconds after network
-blips. A count of `–` with a red `○` means disconnected — see above. Each
-running client counts once (two panes on one machine = 2, correctly).
-
-### Mouse selection doesn't work in the chat pane
-
-Wheel scrolling captures the mouse; use **Shift+drag** to select text (works
-in most terminals).
-
-### Claude Code doesn't start
-
-`command -v claude` must print a path in a fresh shell. The wrapper passes
-all arguments through to the real binary and never wraps itself (symlink-safe).
 
 ---
 
-## Privacy & security notes
+## 🔒 Privacy & security
 
-- **This is one worldwide public room.** Anyone with the app (or the
-  publishable key inside it) can read and write. No auth, no moderation, no
-  history, no blocking. Treat it like shouting in a public square —
-  **never paste secrets, keys, or private code.**
+- **This is one worldwide public room.** Anyone with the app can read and
+  write. No auth, no moderation, no blocking. Treat it like shouting in a
+  public square: **never paste secrets, keys, or private code.**
 - The publishable key is designed to be shipped in clients; Broadcast +
-  Presence on a channel is exactly its intended use.
-- Storage is minimal and rolling: if the operator enabled shared history,
-  only the newest ~1000 messages exist in their Supabase table (older rows
-  are deleted automatically); otherwise nothing is persisted at all.
-  Your pane shows at most the last 100 messages either way.
-- Incoming payloads are length-clamped and rendered as plain text — no markup
-  or escape-sequence injection.
+  Presence is exactly its intended use.
+- Storage is a rolling window: at most the newest ~1000 messages exist in the
+  operator's table (older rows self-delete). Your pane holds at most the last
+  100 in memory. There is no permanent archive.
+- Incoming payloads are length-clamped and rendered as plain text — no
+  markup or escape-sequence injection.
 
 ## License
 
