@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeChat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!--
+      data-tauri-drag-region makes this element a native drag handle for the
+      frameless window (Tauri translates mousedown into startDragging).
+      The attribute only applies to the element it is ON — not its children —
+      so the title span repeats it, while the close button and counter stay
+      plain and remain clickable.
+    -->
+    <header id="header" data-tauri-drag-region>
+      <span class="title" data-tauri-drag-region>CodeChat</span>
+      <span id="status-dot" class="dot" title="Disconnected"></span>
+      <span id="online-count" title="Users online">–</span>
+      <button id="close-btn" title="Close overlay" aria-label="Close">×</button>
+    </header>
+
+    <!-- First-run setup: shown only until a username has been chosen. -->
+    <div id="setup" class="hidden">
+      <h2>Welcome to CodeChat</h2>
+      <p class="hint">One worldwide chat room. Pick a name and you're in.</p>
+      <input id="setup-username" type="text" placeholder="Pick a username (2–20 chars)" maxlength="20" autocomplete="off" />
+      <button id="setup-save">Join chat</button>
+      <p id="setup-error" class="error"></p>
+    </div>
+
+    <main id="messages"></main>
+
+    <form id="composer">
+      <input id="input" type="text" maxlength="300" placeholder="Send a message"
+             autocomplete="off" spellcheck="false" disabled />
+    </form>
+  </div>
+
+  <!--
+    Supabase JS v2 from the jsDelivr CDN (the URL Supabase's own docs use).
+    It registers a global `window.supabase` with createClient(). No bundler
+    needed — but it does mean the overlay needs internet access on launch.
+    The CDN host is allowlisted in the CSP inside tauri.conf.json.
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>

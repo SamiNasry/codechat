@@ -1,0 +1,32 @@
+[package]
+name = "codechat-tui"
+version = "0.1.0"
+description = "CodeChat — the worldwide chat pane for Claude Code (runs inside tmux)"
+edition = "2021"
+rust-version = "1.77"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+# rustls + bundled webpki roots: no OpenSSL, no system CA config needed —
+# the binary works on any machine with zero runtime dependencies.
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+# Pin the rustls crypto backend to ring; without exactly one provider chosen,
+# rustls 0.23 panics at connect time ("Could not automatically determine the
+# process-level CryptoProvider"). main() installs it explicitly.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+ratatui = "0.29"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# REST calls for the optional shared-history table (fetch last N on join,
+# insert on send). Same rustls stack as the websocket — still zero system deps.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "json"] }
+dirs = "6"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+textwrap = "0.16"
+unicode-width = "0.2"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

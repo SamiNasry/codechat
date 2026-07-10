@@ -1,0 +1,66 @@
+# Builds codechat-tui for Linux + macOS and attaches everything an installer
+# needs to a GitHub release. Trigger: push a version tag, e.g.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # musl → fully static binary, runs on every Linux distro
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - os: macos-latest # Apple Silicon
+            target: aarch64-apple-darwin
+          - os: macos-13 # Intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install musl toolchain (Linux only)
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo build --release --target ${{ matrix.target }} --manifest-path tui/Cargo.toml
+          cp tui/target/${{ matrix.target }}/release/codechat-tui codechat-tui-${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codechat-tui-${{ matrix.target }}
+          path: codechat-tui-${{ matrix.target }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create release with all assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            codechat-tui-*
+            codechat
+            install.sh
+            supabase/schema.sql
+          generate_release_notes: true

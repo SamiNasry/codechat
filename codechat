@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+#
+# codechat — Claude Code with the worldwide CodeChat pane in ONE terminal
+# window (tmux split: Claude Code gets almost all the space, the chat is a
+# narrow strip on the right).
+#
+#   ┌──────────────────────────────┬──────────┐
+#   │  Claude Code                 │ CodeChat │
+#   │  (full height, most width)   │ (32 col) │
+#   └──────────────────────────────┴──────────┘
+#
+# One script, two personalities, chosen by invocation name and flags:
+#
+#   codechat [claude args…]      chat pane ON by default
+#   claude   [claude args…]      (as a symlink named `claude`) vanilla
+#                                Claude Code unless --chat is passed
+#
+# Flags the wrapper consumes (NEVER forwarded to Claude Code; if several are
+# given, the last one wins — so `alias claude='codechat --no-chat'` yields a
+# vanilla `claude` where `claude --chat` opts back in):
+#
+#   --chat        force the chat pane on
+#   --no-chat     force it off (plain Claude Code, no tmux involved)
+#   --chat-only   only open the chat pane in the current tmux window —
+#                 use it to bring the chat back after closing it
+#
+# Every other argument passes through to the real claude binary untouched
+# (e.g. --model, -p, --dangerously-skip-permissions, …).
+#
+# tmux is REQUIRED whenever the chat pane is requested — no fallback. Close
+# the pane any time with Ctrl-C (or /quit) inside it; Claude Code instantly
+# expands to full width. Quitting Claude Code ends the session, chat included.
+#
+# Environment overrides:
+#   CODECHAT_TUI_BIN=/path/to/codechat-tui   force the chat binary
+#   CODECHAT_WIDTH=40                        chat pane width in columns
+
+set -u
+
+TUI_NAME="codechat-tui"
+CHAT_WIDTH="${CODECHAT_WIDTH:-32}"
+
+# The *invocation* name (before resolving symlinks — the symlink IS the
+# invocation) picks the default: `codechat` → chat on, anything else → off.
+INVOKED_AS=$(basename "${BASH_SOURCE[0]}")
+
+# ---------------------------------------------------------------------------
+# Portable `readlink -f` (macOS only gained -f in 12.3): follow symlink chains
+# by hand. Used to find this script's real home and to detect "that `claude`
+# on PATH is actually me".
+# ---------------------------------------------------------------------------
+resolve_path() {
+  local target=$1 dir
+  while [ -L "$target" ]; do
+    dir=$(cd -P "$(dirname "$target")" && pwd)
+    target=$(readlink "$target")
+    case $target in
+      /*) ;;                      # absolute symlink — use as-is
+      *) target="$dir/$target" ;; # relative symlink — anchor to the link's dir
+    esac
+  done
+  dir=$(cd -P "$(dirname "$target")" && pwd)
+  printf '%s/%s\n' "$dir" "$(basename "$target")"
+}
+
+SELF=$(resolve_path "${BASH_SOURCE[0]}")
+SELF_DIR=$(dirname "$SELF")
+
+# ---------------------------------------------------------------------------
+# Split our flags from Claude Code's. Only these three exact strings are
+# consumed; everything else lands in CLAUDE_ARGS verbatim. (Caveat: should
+# Claude Code ever grow a real --chat flag of its own, rename ours.)
+# ---------------------------------------------------------------------------
+WANT_CHAT=""
+CHAT_ONLY=0
+CLAUDE_ARGS=()
+for arg in "$@"; do
+  case $arg in
+    --chat)      WANT_CHAT=yes ;;
+    --no-chat)   WANT_CHAT=no ;;
+    --chat-only) CHAT_ONLY=1 ;;
+    *)           CLAUDE_ARGS+=("$arg") ;;
+  esac
+done
+if [ -z "$WANT_CHAT" ]; then
+  [ "$INVOKED_AS" = "codechat" ] && WANT_CHAT=yes || WANT_CHAT=no
+fi
+
+# Note: the ${CLAUDE_ARGS[@]+"${CLAUDE_ARGS[@]}"} expansions below guard
+# against `set -u` tripping on an empty array under macOS's bash 3.2.
+
+# ---------------------------------------------------------------------------
+# Locate the chat binary (needed only when a chat pane is requested).
+# Search order: env override → next to this script → repo cargo output →
+# PATH. Repo paths make a fresh clone work right after `cargo build`.
+# ---------------------------------------------------------------------------
+find_tui() {
+  if [ -n "${CODECHAT_TUI_BIN:-}" ] && [ -x "${CODECHAT_TUI_BIN}" ]; then
+    printf '%s\n' "$CODECHAT_TUI_BIN"
+    return 0
+  fi
+  local candidate
+  for candidate in \
+    "$SELF_DIR/$TUI_NAME" \
+    "$SELF_DIR/tui/target/release/$TUI_NAME" \
+    "$SELF_DIR/tui/target/debug/$TUI_NAME"
+  do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  command -v "$TUI_NAME" 2>/dev/null && return 0
+  return 1
+}
+
+require_chat_deps() {
+  if ! command -v tmux >/dev/null 2>&1; then
+    echo "codechat: tmux is required for the chat pane and was not found." >&2
+    echo "codechat: install it:  sudo apt install tmux   (Linux)" >&2
+    echo "codechat:              brew install tmux       (macOS)" >&2
+    exit 1
+  fi
+  if ! TUI_BIN=$(find_tui); then
+    echo "codechat: chat binary '$TUI_NAME' not found." >&2
+    echo "codechat: build it first:  (cd tui && cargo build --release)  — see README" >&2
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# --chat-only: just (re)open the chat pane in the current tmux window.
+# ---------------------------------------------------------------------------
+if [ "$CHAT_ONLY" = 1 ]; then
+  if [ ${#CLAUDE_ARGS[@]} -gt 0 ]; then
+    echo "codechat: --chat-only opens only the chat pane; other arguments are ignored." >&2
+  fi
+  if [ -z "${TMUX:-}" ]; then
+    echo "codechat: --chat-only works from inside a tmux session only." >&2
+    exit 1
+  fi
+  require_chat_deps
+  exec tmux split-window -h -l "$CHAT_WIDTH" "$TUI_BIN"
+fi
+
+# ---------------------------------------------------------------------------
+# Find the real Claude Code binary.
+# Users may alias `claude` to this script (aliases don't exist inside
+# scripts, so lookups below see only real files) or SYMLINK it under the
+# name `claude` — resolve_path catches that case and we skip ourselves,
+# so an exec loop is impossible either way.
+# ---------------------------------------------------------------------------
+REAL_CLAUDE=""
+while IFS= read -r candidate; do
+  [ -x "$candidate" ] || continue
+  [ "$(resolve_path "$candidate")" = "$SELF" ] && continue
+  REAL_CLAUDE=$candidate
+  break
+done < <(type -ap claude)
+
+if [ -z "$REAL_CLAUDE" ]; then
+  echo "codechat: could not find the real 'claude' binary on PATH." >&2
+  echo "codechat: install Claude Code first: https://claude.com/claude-code" >&2
+  exit 127
+fi
+
+# ---------------------------------------------------------------------------
+# No chat requested → behave exactly like claude. No tmux, no panes.
+# ---------------------------------------------------------------------------
+if [ "$WANT_CHAT" = no ]; then
+  exec "$REAL_CLAUDE" ${CLAUDE_ARGS[@]+"${CLAUDE_ARGS[@]}"}
+fi
+
+require_chat_deps
+
+# ---------------------------------------------------------------------------
+# Case 1: already inside tmux. Add the chat pane to the current window
+# (unless one is already open) and run Claude Code right here, in this pane.
+# The user's own tmux settings are respected — we change nothing.
+# ---------------------------------------------------------------------------
+if [ -n "${TMUX:-}" ]; then
+  if ! tmux list-panes -F '#{pane_current_command}' 2>/dev/null | grep -qx "$TUI_NAME"; then
+    # -d keeps focus here; -l fixes the chat width in columns.
+    tmux split-window -h -l "$CHAT_WIDTH" -d "$TUI_BIN"
+  fi
+  exec "$REAL_CLAUDE" ${CLAUDE_ARGS[@]+"${CLAUDE_ARGS[@]}"}
+fi
+
+# ---------------------------------------------------------------------------
+# Case 2: no tmux session yet. Create one that looks like a plain terminal
+# (status bar off), sized to the real terminal so the 32-column split isn't
+# rescaled when we attach.
+# ---------------------------------------------------------------------------
+SESSION="codechat-$$"
+
+# The session runs a shell string, so Claude's arguments are re-quoted with
+# printf %q to survive the trip. Appending kill-session ties the session's
+# life to Claude Code: quit Claude → chat pane and session close too.
+CLAUDE_CMD=$(printf '%q ' "$REAL_CLAUDE" ${CLAUDE_ARGS[@]+"${CLAUDE_ARGS[@]}"})
+
+COLS=$(tput cols 2>/dev/null || echo 200)
+ROWS=$(tput lines 2>/dev/null || echo 50)
+
+tmux new-session -d -s "$SESSION" -x "$COLS" -y "$ROWS" \
+  "$CLAUDE_CMD; tmux kill-session -t $SESSION 2>/dev/null"
+
+tmux set-option -t "$SESSION" status off   # no tmux status bar — looks native
+tmux set-option -t "$SESSION" mouse on     # wheel scrolling in both panes
+
+# The chat strip: fixed CHAT_WIDTH columns on the right, focus stays on Claude.
+tmux split-window -h -l "$CHAT_WIDTH" -d -t "$SESSION" "$TUI_BIN"
+
+exec tmux attach-session -t "$SESSION"

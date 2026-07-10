@@ -1,0 +1,22 @@
+[package]
+name = "codechat-overlay"
+version = "0.1.0"
+description = "CodeChat — a floating Twitch-style chat overlay for Claude Code sessions"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `macos-private-api` is required for a truly transparent window background on
+# macOS (WKWebView transparency is behind a private API). It is a no-op on Linux.
+tauri = { version = "2", features = ["macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
