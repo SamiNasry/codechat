@@ -15,6 +15,7 @@ You need [Claude Code](https://claude.com/claude-code) and tmux, then one line:
 ```bash
 sudo apt install tmux     # macOS: brew install tmux
 curl -fsSL https://codechat.live/install.sh | bash
+claude --chat
 ```
 
 Open a new terminal and run `claude --chat`. Claude Code opens on the left, the chat
