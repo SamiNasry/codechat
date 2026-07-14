@@ -2,7 +2,7 @@
   "name": "codechat",
   "displayName": "CodeChat",
   "description": "A worldwide chat room in your sidebar — so coding with an AI doesn't feel lonely. Same room as the CodeChat terminal client.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "SamiNasry",
   "license": "SEE LICENSE IN README.md",
   "icon": "icon.png",

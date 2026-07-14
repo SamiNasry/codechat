@@ -23,12 +23,13 @@ use serde_json::json;
 use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Instant;
 use tokio::sync::mpsc;
 use unicode_width::UnicodeWidthStr;
 
 // The public CodeChat backend, baked in so every install lands in the same
 // worldwide room. The publishable key is a client-side key designed to be
-// shipped in apps — not a secret. Keep in sync with src/app.js (overlay).
+// shipped in apps — not a secret. Keep in sync with vscode/media/chat.js.
 // ~/.codechat/config.json may override both for self-hosted backends.
 const DEFAULT_SUPABASE_URL: &str = "https://hhyrwfzqoszcwfklawjm.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY: &str = "sb_publishable_YqXoTDD7nbWCtNphVpwBEw_a-Wj1XqA";
@@ -36,6 +37,11 @@ const DEFAULT_SUPABASE_ANON_KEY: &str = "sb_publishable_YqXoTDD7nbWCtNphVpwBEw_a
 const MAX_MESSAGES: usize = 100; // scroll-back cap, same as the overlay
 const MAX_TEXT_LEN: usize = 300;
 const MAX_NAME_LEN: usize = 20;
+
+// Anti-spam send throttle (token bucket): a short burst is fine, sustained
+// spam is not — refills one token every 2s, capped at SEND_BURST.
+const SEND_BURST: f64 = 5.0;
+const SEND_REFILL_PER_SEC: f64 = 0.5;
 
 const PURPLE: Color = Color::Rgb(145, 70, 255); // Twitch purple
 const MUTED: Color = Color::Rgb(173, 173, 184);
@@ -462,6 +468,10 @@ async fn run_ui(username_override: Option<String>) {
         app.system("connecting…");
     }
 
+    // Send throttle (anti-spam): token bucket, refilled over time.
+    let mut send_tokens = SEND_BURST;
+    let mut send_refill = Instant::now();
+
     loop {
         if terminal.draw(|f| draw(f, &mut app)).is_err() {
             break;
@@ -516,7 +526,16 @@ async fn run_ui(username_override: Option<String>) {
                                     app.input.clear();
                                     if text == "/quit" { break; }
                                     if !text.is_empty() && app.connected {
-                                        if let Some(tx) = &rt_tx {
+                                        let now = Instant::now();
+                                        send_tokens = (send_tokens
+                                            + now.duration_since(send_refill).as_secs_f64()
+                                                * SEND_REFILL_PER_SEC)
+                                            .min(SEND_BURST);
+                                        send_refill = now;
+                                        if send_tokens < 1.0 {
+                                            app.system("slow down — you're sending too fast");
+                                        } else if let Some(tx) = &rt_tx {
+                                            send_tokens -= 1.0;
                                             // Rendering happens when the echo
                                             // comes back (broadcast self:true)
                                             // — one render path for everyone.

@@ -2,7 +2,7 @@
 #
 # CodeChat installer — one command from zero to worldwide chat:
 #
-#   curl -fsSL https://raw.githubusercontent.com/SamiNasry/codechat/main/install.sh | bash
+#   curl -fsSL https://codechat.live/install.sh | bash
 #
 # What it does:
 #   1. Downloads the prebuilt codechat-tui binary for your OS/arch from the

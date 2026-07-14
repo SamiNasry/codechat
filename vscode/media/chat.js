@@ -254,10 +254,22 @@ els.setup.addEventListener("keydown", (e) => {
   if (e.key === "Enter") submitSetup();
 });
 
+// Anti-spam token bucket: a short burst is fine, sustained spam is not.
+let sendTokens = 5, sendRefill = Date.now();
+function throttleOk() {
+  const now = Date.now();
+  sendTokens = Math.min(5, sendTokens + (now - sendRefill) / 2000);
+  sendRefill = now;
+  if (sendTokens < 1) return false;
+  sendTokens -= 1;
+  return true;
+}
+
 els.composer.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = els.input.value.trim().slice(0, MAX_TEXT_LEN);
   if (!text || !connected || !channel) return;
+  if (!throttleOk()) { renderSystem("slow down — you're sending too fast"); return; }
   els.input.value = "";
   sendMessage(text);
 });
