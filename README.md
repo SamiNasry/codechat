@@ -1,19 +1,12 @@
 # CodeChat
 
 Coding with an AI gets quiet. CodeChat is a little worldwide chat that lives in
-your terminal, right next to Claude Code — everyone who installs it lands in the
+your terminal, right next to Claude Code. Everyone who installs it lands in the
 same room. Pick a name, say hi.
 
 **[codechat.live](https://codechat.live)**
 
-```
-┌─────────────────────────────────────┬──────────────┐
-│                                     │ CodeChat  12 │
-│   Claude Code                       │ alice: hey   │
-│   (works exactly as usual)          │ bob: hi      │
-│                                     │ > _          │
-└─────────────────────────────────────┴──────────────┘
-```
+![CodeChat: Claude Code on the left, the worldwide chat pane on the right](assets/hero.png)
 
 ## Install
 
@@ -24,11 +17,11 @@ sudo apt install tmux     # macOS: brew install tmux
 curl -fsSL https://codechat.live/install.sh | bash
 ```
 
-Open a new terminal and run `claude --chat` — Claude Code on the left, the chat
+Open a new terminal and run `claude --chat`. Claude Code opens on the left, the chat
 on the right. Plain `claude` still works exactly as before; the installer just
 adds one alias and drops two small files in `~/.local/bin`.
 
-Linux and macOS (Windows through WSL). No compilers or libraries — it downloads
+Linux and macOS (Windows through WSL). No compilers or libraries needed; it downloads
 one static binary. To uninstall, delete `~/.local/bin/codechat*`, `~/.codechat`,
 and the alias line.
 
@@ -39,11 +32,11 @@ curl -L https://github.com/SamiNasry/codechat/releases/latest/download/codechat.
 ```
 
 Click the CodeChat bubble in the sidebar. Same room, same name (it reads the same
-`~/.codechat/config.json`), and it works on Windows too — no tmux needed.
+`~/.codechat/config.json`), and it works on Windows too, no tmux needed.
 
 ## Good to know
 
-- It's **one public room** — anyone can read and write, so don't paste secrets or
+- It's **one public room**: anyone can read and write, so don't paste secrets or
   private code.
 - Enter sends, 300 characters max. Close the chat with Ctrl-C; bring it back with
   `claude --chat-only`.
@@ -56,7 +49,7 @@ Click the CodeChat bubble in the sidebar. Same room, same name (it reads the sam
 A bash wrapper makes the tmux split and passes every argument through to the real
 `claude`. A tiny single-binary Rust client (`codechat-tui`) does the chat, and
 everyone connects to one Supabase Realtime channel. The backend URL and
-publishable key are baked in — a publishable key is an address, not a secret.
+publishable key are baked in. A publishable key is an address, not a secret.
 
 Build it yourself with `cd tui && cargo build --release`. Want your own private
 room? Point the `DEFAULT_SUPABASE_*` constants in `tui/src/main.rs` at a free
