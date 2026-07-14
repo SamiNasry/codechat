@@ -110,8 +110,10 @@ missing=0
 
 if ! command -v tmux >/dev/null 2>&1; then
   missing=1
-  say "⚠ tmux is not installed (required):"
-  say "    Linux:  sudo apt install tmux"
+  say "⚠ You still need tmux — it's what splits your terminal so the chat can"
+  say "  sit beside Claude Code. Until it's installed, 'claude --chat' won't open."
+  say "  Install it with one command, then you're all set:"
+  say "    Linux:  sudo apt install tmux    (or dnf / pacman on other distros)"
   say "    macOS:  brew install tmux"
 fi
 
