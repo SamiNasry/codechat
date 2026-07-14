@@ -6,7 +6,7 @@ pick a name and you're in.
 
 Coding with an AI gets quiet. This fixes that.
 
-Website: [saminasry.github.io/codechat](https://saminasry.github.io/codechat/)
+Website: [codechat.live](https://codechat.live)
 
 ```
 ┌─────────────────────────────────────┬──────────────┐
@@ -26,7 +26,7 @@ You need [Claude Code](https://claude.com/claude-code) and tmux:
 
 ```bash
 sudo apt install tmux        # macOS: brew install tmux
-curl -fsSL https://raw.githubusercontent.com/SamiNasry/codechat/main/install.sh | bash
+curl -fsSL https://codechat.live/install.sh | bash
 ```
 
 Open a new terminal, then:
