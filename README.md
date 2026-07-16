@@ -48,7 +48,7 @@ Terminal chat commands:
 - `/delete` asks for confirmation before deleting that latest owned message.
 - `/invite` shows the public invite link; `/quit` closes the chat.
 - `:smile:`, `:joy:`, `:heart:`, `:fire:`, `:rocket:`, `:thumbsup:`,
-  `:check:`, and `:eyes:` expand to emoji in the terminal. Native Unicode
+  `:check:`, and `:eyes:` expand to emoji in either client. Native Unicode
   emoji can still be typed or pasted directly.
 
 ## Good to know

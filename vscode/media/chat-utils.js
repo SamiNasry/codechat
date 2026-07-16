@@ -14,6 +14,23 @@
     return length >= 2 && length <= 20;
   }
 
+  function expandEmojiShortcodes(text) {
+    const aliases = {
+      ":smile:": "😀",
+      ":joy:": "😂",
+      ":heart:": "❤️",
+      ":fire:": "🔥",
+      ":rocket:": "🚀",
+      ":thumbsup:": "👍",
+      ":check:": "✅",
+      ":eyes:": "👀",
+    };
+    return String(text).replace(
+      /:(?:smile|joy|heart|fire|rocket|thumbsup|check|eyes):/g,
+      (shortcode) => aliases[shortcode],
+    );
+  }
+
   function normalizeMessage(raw, maxTextLength = 300) {
     if (!raw || typeof raw.username !== "string" || typeof raw.text !== "string") return null;
     const id = raw.id == null ? null : String(raw.id);
@@ -44,5 +61,11 @@
     return { count, users: [...users] };
   }
 
-  return { normalizeMessage, presenceSnapshot, truncate, validUsername };
+  return {
+    expandEmojiShortcodes,
+    normalizeMessage,
+    presenceSnapshot,
+    truncate,
+    validUsername,
+  };
 });

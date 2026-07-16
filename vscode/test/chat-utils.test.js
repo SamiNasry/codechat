@@ -3,11 +3,19 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  expandEmojiShortcodes,
   normalizeMessage,
   presenceSnapshot,
   truncate,
   validUsername,
 } = require("../media/chat-utils.js");
+
+test("emoji shortcodes match the terminal aliases", () => {
+  assert.equal(
+    expandEmojiShortcodes("ship :rocket: :thumbsup: unknown :wave:"),
+    "ship 🚀 👍 unknown :wave:",
+  );
+});
 
 test("emoji truncation keeps complete Unicode code points", () => {
   assert.equal(truncate("😀😂🚀", 2), "😀😂");

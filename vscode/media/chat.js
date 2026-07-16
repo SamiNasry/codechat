@@ -15,7 +15,13 @@ const INVITE_URL = "https://codechat.live";
 const EMOJIS = ["😀", "😂", "🤩", "🤔", "👍", "🎉", "❤️", "🔥", "✅", "👀", "🚀", "💻"];
 
 const vscodeApi = acquireVsCodeApi();
-const { normalizeMessage, presenceSnapshot, validUsername } = CodeChatUtils;
+const {
+  expandEmojiShortcodes,
+  normalizeMessage,
+  presenceSnapshot,
+  truncate,
+  validUsername,
+} = CodeChatUtils;
 const els = {
   statusDot: document.getElementById("status-dot"),
   onlineCount: document.getElementById("online-count"),
@@ -497,7 +503,7 @@ function throttleOk() {
 els.composer.addEventListener("submit", async (event) => {
   event.preventDefault();
   closePickers();
-  const text = els.input.value.trim().slice(0, MAX_TEXT_LEN);
+  const text = truncate(expandEmojiShortcodes(els.input.value.trim()), MAX_TEXT_LEN);
   if (!text || !connected || !channel) return;
   if (editingMessageId) {
     await saveEdit(text);
