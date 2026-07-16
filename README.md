@@ -35,11 +35,21 @@ curl -L https://github.com/SamiNasry/codechat/releases/latest/download/codechat.
 Click the CodeChat bubble in the sidebar. Same room, same name (it reads the same
 `~/.codechat/config.json`), and it works on Windows too, no tmux needed.
 
-The VS Code sidebar also includes an online-user mention menu, a small emoji
-picker, a one-click invite link, and edit/delete controls on messages sent by
-this installation. Terminal clients highlight messages that mention their
-username and reflect edits or deletions in real time; Unicode emoji can be typed
-or pasted directly into the input.
+The VS Code sidebar includes an online-user mention menu, a small emoji picker,
+a one-click invite link, and edit/delete controls on messages sent by this
+installation. The terminal offers the same capabilities through compact chat
+commands; type `/help` to see them. Both clients share the same message identity,
+highlight mentions, and reflect edits or deletions in real time.
+
+Terminal chat commands:
+
+- `/users` lists visible users; `/mention <name> -- <message>` mentions one.
+- `/edit <new text>` edits the latest message owned by this installation.
+- `/delete` asks for confirmation before deleting that latest owned message.
+- `/invite` shows the public invite link; `/quit` closes the chat.
+- `:smile:`, `:joy:`, `:heart:`, `:fire:`, `:rocket:`, `:thumbsup:`,
+  `:check:`, and `:eyes:` expand to emoji in the terminal. Native Unicode
+  emoji can still be typed or pasted directly.
 
 ## Good to know
 

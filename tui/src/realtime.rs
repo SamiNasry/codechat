@@ -18,7 +18,7 @@
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::time::{interval, sleep, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
@@ -35,6 +35,7 @@ pub enum RtEvent {
     Disconnected,
     Chat {
         id: Option<String>,
+        client_id: Option<String>,
         username: String,
         text: String,
         timestamp_ms: Option<i64>,
@@ -46,14 +47,25 @@ pub enum RtEvent {
     MessageDelete {
         id: String,
     },
-    Online(usize),
+    Presence {
+        count: usize,
+        usernames: Vec<String>,
+    },
 }
 
 /// Commands flowing UI → realtime.
 #[derive(Debug)]
 pub enum RtCommand {
-    /// payload: {username, text, timestamp}
-    Broadcast(Value),
+    Broadcast { event: String, payload: Value },
+}
+
+impl RtCommand {
+    pub fn broadcast(event: &str, payload: Value) -> Self {
+        Self::Broadcast {
+            event: event.to_string(),
+            payload,
+        }
+    }
 }
 
 /// Spawns the connection task; returns (command sender, event receiver).
@@ -169,12 +181,12 @@ async fn session(
             }
 
             cmd = cmd_rx.recv() => {
-                let Some(RtCommand::Broadcast(payload)) = cmd else {
+                let Some(RtCommand::Broadcast { event, payload }) = cmd else {
                     return true; // sender dropped → UI exited
                 };
                 let msg = json!({
                     "topic": topic, "event": "broadcast",
-                    "payload": { "type": "broadcast", "event": "message", "payload": payload },
+                    "payload": { "type": "broadcast", "event": event, "payload": payload },
                     "ref": msg_ref.to_string()
                 });
                 msg_ref += 1;
@@ -228,6 +240,7 @@ async fn session(
                             {
                                 let _ = evt_tx.send(RtEvent::Chat {
                                     id: json_id(&p["id"]),
+                                    client_id: p["clientId"].as_str().map(ToOwned::to_owned),
                                     username: username.to_string(),
                                     text: text.to_string(),
                                     timestamp_ms: p["timestamp"].as_i64(),
@@ -253,13 +266,13 @@ async fn session(
                     // connected client.
                     "presence_state" => {
                         present = presence_from_state(&v["payload"]);
-                        let _ = evt_tx.send(RtEvent::Online(present.len()));
+                        emit_presence(evt_tx, &present);
                     }
 
                     // Incremental joins/leaves after the snapshot.
                     "presence_diff" => {
                         apply_presence_diff(&mut present, &v["payload"]);
-                        let _ = evt_tx.send(RtEvent::Online(present.len()));
+                        emit_presence(evt_tx, &present);
                     }
 
                     // Server-side channel teardown → reconnect from scratch.
@@ -276,7 +289,7 @@ async fn session(
     }
 }
 
-type PresenceState = HashMap<String, HashSet<String>>;
+type PresenceState = HashMap<String, HashMap<String, String>>;
 
 fn json_id(value: &Value) -> Option<String> {
     value
@@ -286,12 +299,16 @@ fn json_id(value: &Value) -> Option<String> {
         .or_else(|| value.as_u64().map(|id| id.to_string()))
 }
 
-fn refs_for_presence(value: &Value) -> HashSet<String> {
+fn metas_for_presence(value: &Value) -> HashMap<String, String> {
     value["metas"]
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|meta| meta["phx_ref"].as_str().map(ToOwned::to_owned))
+        .filter_map(|meta| {
+            let presence_ref = meta["phx_ref"].as_str()?.to_string();
+            let username = meta["username"].as_str().unwrap_or("").to_string();
+            Some((presence_ref, username))
+        })
         .collect()
 }
 
@@ -301,7 +318,7 @@ fn presence_from_state(payload: &Value) -> PresenceState {
         .map(|entries| {
             entries
                 .iter()
-                .map(|(key, value)| (key.clone(), refs_for_presence(value)))
+                .map(|(key, value)| (key.clone(), metas_for_presence(value)))
                 .collect()
         })
         .unwrap_or_default()
@@ -313,24 +330,39 @@ fn apply_presence_diff(state: &mut PresenceState, payload: &Value) {
             state
                 .entry(key.clone())
                 .or_default()
-                .extend(refs_for_presence(value));
+                .extend(metas_for_presence(value));
         }
     }
     if let Some(leaves) = payload["leaves"].as_object() {
         for (key, value) in leaves {
-            let leaving = refs_for_presence(value);
+            let leaving = metas_for_presence(value);
             if let Some(current) = state.get_mut(key) {
                 if leaving.is_empty() || current.is_empty() {
                     state.remove(key);
                     continue;
                 }
-                current.retain(|presence_ref| !leaving.contains(presence_ref));
+                current.retain(|presence_ref, _| !leaving.contains_key(presence_ref));
                 if current.is_empty() {
                     state.remove(key);
                 }
             }
         }
     }
+}
+
+fn emit_presence(evt_tx: &mpsc::UnboundedSender<RtEvent>, state: &PresenceState) {
+    let mut usernames: Vec<String> = state
+        .values()
+        .flat_map(|metas| metas.values())
+        .filter(|username| !username.is_empty())
+        .cloned()
+        .collect();
+    usernames.sort_by_key(|name| name.to_lowercase());
+    usernames.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    let _ = evt_tx.send(RtEvent::Presence {
+        count: state.len(),
+        usernames,
+    });
 }
 
 #[cfg(test)]
@@ -340,13 +372,13 @@ mod tests {
     #[test]
     fn presence_diff_removes_user_that_left() {
         let mut state = presence_from_state(&json!({
-            "alice": {"metas": [{"phx_ref": "a1"}]},
-            "bob": {"metas": [{"phx_ref": "b1"}]}
+            "alice": {"metas": [{"phx_ref": "a1", "username": "alice"}]},
+            "bob": {"metas": [{"phx_ref": "b1", "username": "bob"}]}
         }));
 
         apply_presence_diff(
             &mut state,
-            &json!({"joins": {}, "leaves": {"bob": {"metas": [{"phx_ref": "b1"}]}}}),
+            &json!({"joins": {}, "leaves": {"bob": {"metas": [{"phx_ref": "b1", "username": "bob"}]}}}),
         );
 
         assert_eq!(state.len(), 1);
@@ -357,15 +389,18 @@ mod tests {
     #[test]
     fn presence_diff_keeps_key_until_its_last_meta_leaves() {
         let mut state = presence_from_state(&json!({
-            "shared": {"metas": [{"phx_ref": "one"}, {"phx_ref": "two"}]}
+            "shared": {"metas": [
+                {"phx_ref": "one", "username": "alice"},
+                {"phx_ref": "two", "username": "alice"}
+            ]}
         }));
 
         apply_presence_diff(
             &mut state,
-            &json!({"joins": {}, "leaves": {"shared": {"metas": [{"phx_ref": "one"}]}}}),
+            &json!({"joins": {}, "leaves": {"shared": {"metas": [{"phx_ref": "one", "username": "alice"}]}}}),
         );
 
         assert_eq!(state.len(), 1);
-        assert_eq!(state["shared"], HashSet::from(["two".to_string()]));
+        assert_eq!(state["shared"].get("two"), Some(&"alice".to_string()));
     }
 }
