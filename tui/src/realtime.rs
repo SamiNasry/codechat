@@ -18,7 +18,7 @@
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
 use tokio::time::{interval, sleep, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
@@ -34,9 +34,17 @@ pub enum RtEvent {
     Connected,
     Disconnected,
     Chat {
+        id: Option<String>,
         username: String,
         text: String,
         timestamp_ms: Option<i64>,
+    },
+    MessageEdit {
+        id: String,
+        text: String,
+    },
+    MessageDelete {
+        id: String,
     },
     Online(usize),
 }
@@ -87,7 +95,15 @@ async fn run(
     );
 
     loop {
-        let ended = session(&ws_url, &key, &username, &presence_key, &mut cmd_rx, &evt_tx).await;
+        let ended = session(
+            &ws_url,
+            &key,
+            &username,
+            &presence_key,
+            &mut cmd_rx,
+            &evt_tx,
+        )
+        .await;
         if evt_tx.send(RtEvent::Disconnected).is_err() || ended {
             return; // UI is gone — stop reconnecting
         }
@@ -137,7 +153,7 @@ async fn session(
     let mut heartbeat = interval(Duration::from_secs(HEARTBEAT_SECS));
     heartbeat.tick().await; // consume the immediate first tick
     let mut msg_ref: u64 = 2;
-    let mut present: HashSet<String> = HashSet::new();
+    let mut present: PresenceState = HashMap::new();
 
     loop {
         tokio::select! {
@@ -211,10 +227,23 @@ async fn session(
                                 (p["username"].as_str(), p["text"].as_str())
                             {
                                 let _ = evt_tx.send(RtEvent::Chat {
+                                    id: json_id(&p["id"]),
                                     username: username.to_string(),
                                     text: text.to_string(),
                                     timestamp_ms: p["timestamp"].as_i64(),
                                 });
+                            }
+                        } else if v["payload"]["event"] == "message_edit" {
+                            let p = &v["payload"]["payload"];
+                            if let (Some(id), Some(text)) = (json_id(&p["id"]), p["text"].as_str()) {
+                                let _ = evt_tx.send(RtEvent::MessageEdit {
+                                    id,
+                                    text: text.to_string(),
+                                });
+                            }
+                        } else if v["payload"]["event"] == "message_delete" {
+                            if let Some(id) = json_id(&v["payload"]["payload"]["id"]) {
+                                let _ = evt_tx.send(RtEvent::MessageDelete { id });
                             }
                         }
                     }
@@ -223,23 +252,13 @@ async fn session(
                     // server-side re-syncs. Keys are presence keys, one per
                     // connected client.
                     "presence_state" => {
-                        present = v["payload"]
-                            .as_object()
-                            .map(|o| o.keys().cloned().collect())
-                            .unwrap_or_default();
+                        present = presence_from_state(&v["payload"]);
                         let _ = evt_tx.send(RtEvent::Online(present.len()));
                     }
 
                     // Incremental joins/leaves after the snapshot.
                     "presence_diff" => {
-                        if let Some(joins) = v["payload"]["joins"].as_object() {
-                            present.extend(joins.keys().cloned());
-                        }
-                        if let Some(leaves) = v["payload"]["leaves"].as_object() {
-                            for k in leaves.keys() {
-                                present.remove(k);
-                            }
-                        }
+                        apply_presence_diff(&mut present, &v["payload"]);
                         let _ = evt_tx.send(RtEvent::Online(present.len()));
                     }
 
@@ -254,5 +273,99 @@ async fn session(
                 }
             }
         }
+    }
+}
+
+type PresenceState = HashMap<String, HashSet<String>>;
+
+fn json_id(value: &Value) -> Option<String> {
+    value
+        .as_str()
+        .map(ToOwned::to_owned)
+        .or_else(|| value.as_i64().map(|id| id.to_string()))
+        .or_else(|| value.as_u64().map(|id| id.to_string()))
+}
+
+fn refs_for_presence(value: &Value) -> HashSet<String> {
+    value["metas"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|meta| meta["phx_ref"].as_str().map(ToOwned::to_owned))
+        .collect()
+}
+
+fn presence_from_state(payload: &Value) -> PresenceState {
+    payload
+        .as_object()
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|(key, value)| (key.clone(), refs_for_presence(value)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn apply_presence_diff(state: &mut PresenceState, payload: &Value) {
+    if let Some(joins) = payload["joins"].as_object() {
+        for (key, value) in joins {
+            state
+                .entry(key.clone())
+                .or_default()
+                .extend(refs_for_presence(value));
+        }
+    }
+    if let Some(leaves) = payload["leaves"].as_object() {
+        for (key, value) in leaves {
+            let leaving = refs_for_presence(value);
+            if let Some(current) = state.get_mut(key) {
+                if leaving.is_empty() || current.is_empty() {
+                    state.remove(key);
+                    continue;
+                }
+                current.retain(|presence_ref| !leaving.contains(presence_ref));
+                if current.is_empty() {
+                    state.remove(key);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presence_diff_removes_user_that_left() {
+        let mut state = presence_from_state(&json!({
+            "alice": {"metas": [{"phx_ref": "a1"}]},
+            "bob": {"metas": [{"phx_ref": "b1"}]}
+        }));
+
+        apply_presence_diff(
+            &mut state,
+            &json!({"joins": {}, "leaves": {"bob": {"metas": [{"phx_ref": "b1"}]}}}),
+        );
+
+        assert_eq!(state.len(), 1);
+        assert!(state.contains_key("alice"));
+        assert!(!state.contains_key("bob"));
+    }
+
+    #[test]
+    fn presence_diff_keeps_key_until_its_last_meta_leaves() {
+        let mut state = presence_from_state(&json!({
+            "shared": {"metas": [{"phx_ref": "one"}, {"phx_ref": "two"}]}
+        }));
+
+        apply_presence_diff(
+            &mut state,
+            &json!({"joins": {}, "leaves": {"shared": {"metas": [{"phx_ref": "one"}]}}}),
+        );
+
+        assert_eq!(state.len(), 1);
+        assert_eq!(state["shared"], HashSet::from(["two".to_string()]));
     }
 }
