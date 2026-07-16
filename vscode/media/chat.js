@@ -1,15 +1,7 @@
-/* CodeChat webview client.
- *
- * Same room, same protocol, same message shape as the terminal client
- * (tui/) — just running inside a VS Code webview. Config (username, and
- * optional backend overrides) comes from ~/.codechat/config.json via the
- * extension host, so terminal and VS Code share one identity.
- */
+/* CodeChat VS Code webview client. */
 
 "use strict";
 
-// The public CodeChat backend. Publishable keys are client-side identifiers,
-// designed to be shipped in apps. Keep in sync with tui/src/main.rs.
 const DEFAULT_SUPABASE_URL = "https://hhyrwfzqoszcwfklawjm.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY =
   "sb_publishable_YqXoTDD7nbWCtNphVpwBEw_a-Wj1XqA";
@@ -19,12 +11,15 @@ const MAX_MESSAGES = 100;
 const MAX_TEXT_LEN = 300;
 const HISTORY_LIMIT = 50;
 const REJOIN_DELAY_MS = 3000;
+const INVITE_URL = "https://codechat.live";
+const EMOJIS = ["😀", "😂", "🤩", "🤔", "👍", "🎉", "❤️", "🔥", "✅", "👀", "🚀", "💻"];
 
 const vscodeApi = acquireVsCodeApi();
-
+const { normalizeMessage, presenceSnapshot, validUsername } = CodeChatUtils;
 const els = {
   statusDot: document.getElementById("status-dot"),
   onlineCount: document.getElementById("online-count"),
+  invite: document.getElementById("invite"),
   setup: document.getElementById("setup"),
   setupUsername: document.getElementById("setup-username"),
   setupSave: document.getElementById("setup-save"),
@@ -32,23 +27,29 @@ const els = {
   messages: document.getElementById("messages"),
   composer: document.getElementById("composer"),
   input: document.getElementById("input"),
+  mention: document.getElementById("mention"),
+  emoji: document.getElementById("emoji"),
+  peopleMenu: document.getElementById("people-menu"),
+  emojiMenu: document.getElementById("emoji-menu"),
+  editing: document.getElementById("editing"),
+  cancelEdit: document.getElementById("cancel-edit"),
 };
 
 let config = {};
 let client = null;
 let channel = null;
 let connected = false;
+let viewVisible = true;
+let presenceTracked = false;
 let rejoinTimer = null;
 let historyLoaded = false;
+let editingMessageId = null;
+const onlineUsers = new Set();
+const messageRows = new Map();
 
-// Presence is keyed per webview instance so duplicate usernames still count.
 const presenceKey = crypto.randomUUID
   ? crypto.randomUUID()
   : `vs-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-
-// ---------------------------------------------------------------------------
-// Rendering (same deterministic name→color hash as every other client)
-// ---------------------------------------------------------------------------
 
 function usernameColor(name) {
   let hash = 0;
@@ -64,39 +65,119 @@ function appendRow(row) {
   const list = els.messages;
   const pinned = list.scrollHeight - list.scrollTop - list.clientHeight < 48;
   list.appendChild(row);
-  while (list.children.length > MAX_MESSAGES) list.firstChild.remove();
+  while (list.children.length > MAX_MESSAGES) {
+    const removed = list.firstChild;
+    if (removed.dataset.messageId) messageRows.delete(removed.dataset.messageId);
+    removed.remove();
+  }
   if (pinned) list.scrollTop = list.scrollHeight;
 }
 
-function buildChatRow(username, text, when) {
+function mentionNames() {
+  return [...new Set([config.username, ...onlineUsers].filter(Boolean))]
+    .sort((a, b) => b.length - a.length);
+}
+
+function appendTextWithMentions(parent, text) {
+  const names = mentionNames();
+  if (!names.length) {
+    parent.appendChild(document.createTextNode(text));
+    return;
+  }
+  const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(@(?:${escaped.join("|")}))(?=$|[\\s.,!?;:])`, "gi");
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+    const mention = document.createElement("span");
+    mention.className = "mention";
+    if (match[1].slice(1).toLocaleLowerCase() === String(config.username).toLocaleLowerCase()) {
+      mention.classList.add("me");
+    }
+    mention.textContent = match[1];
+    parent.appendChild(mention);
+    cursor = match.index + match[0].length;
+  }
+  parent.appendChild(document.createTextNode(text.slice(cursor)));
+}
+
+function insertAtCursor(text) {
+  const start = els.input.selectionStart ?? els.input.value.length;
+  const end = els.input.selectionEnd ?? start;
+  const next = `${els.input.value.slice(0, start)}${text}${els.input.value.slice(end)}`
+    .slice(0, MAX_TEXT_LEN);
+  els.input.value = next;
+  const cursor = Math.min(start + text.length, next.length);
+  els.input.focus();
+  els.input.setSelectionRange(cursor, cursor);
+}
+
+function mentionUser(username) {
+  insertAtCursor(`@${username} `);
+  closePickers();
+}
+
+function buildChatRow(message) {
   const row = document.createElement("div");
   row.className = "msg";
-  if (username === config.username) row.classList.add("you");
+  if (message.clientId && message.clientId === config.clientId) row.classList.add("you");
+  if (message.id) {
+    row.dataset.messageId = message.id;
+    messageRows.set(message.id, row);
+  }
+  row._message = message;
 
   const body = document.createElement("span");
   body.className = "body";
   const name = document.createElement("span");
   name.className = "name";
-  name.style.color = usernameColor(username);
-  name.textContent = username;
+  name.style.color = usernameColor(message.username);
+  name.textContent = message.username;
+  name.title = `Mention ${message.username}`;
+  name.addEventListener("click", () => mentionUser(message.username));
   body.appendChild(name);
-  body.appendChild(document.createTextNode(": " + text));
+  body.appendChild(document.createTextNode(": "));
+  const text = document.createElement("span");
+  text.className = "text";
+  appendTextWithMentions(text, message.text);
+  body.appendChild(text);
+  if (message.edited) {
+    const edited = document.createElement("span");
+    edited.className = "edited";
+    edited.textContent = " (edited)";
+    body.appendChild(edited);
+  }
 
   const time = document.createElement("span");
   time.className = "time";
-  time.textContent = formatTime(when);
-
+  time.textContent = formatTime(new Date(message.timestamp));
   row.appendChild(body);
   row.appendChild(time);
+
+  if (message.id && message.clientId === config.clientId) {
+    const actions = document.createElement("span");
+    actions.className = "actions";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "edit";
+    edit.title = "Edit message";
+    edit.addEventListener("click", () => beginEdit(message.id));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "delete";
+    remove.title = "Delete message";
+    remove.addEventListener("click", () => deleteMessage(message.id));
+    actions.append(edit, remove);
+    row.appendChild(actions);
+  }
   return row;
 }
 
 function renderChat(payload) {
-  if (!payload || typeof payload.username !== "string" || typeof payload.text !== "string") return;
-  const username = payload.username.slice(0, 20) || "anon";
-  const text = payload.text.slice(0, MAX_TEXT_LEN);
-  const when = typeof payload.timestamp === "number" ? new Date(payload.timestamp) : new Date();
-  appendRow(buildChatRow(username, text, when));
+  const message = normalizeMessage(payload, MAX_TEXT_LEN);
+  if (!message) return;
+  if (message.id && messageRows.has(message.id)) return;
+  appendRow(buildChatRow(message));
 }
 
 function renderSystem(text) {
@@ -109,25 +190,43 @@ function renderSystem(text) {
   appendRow(row);
 }
 
+function applyMessageEdit(payload) {
+  const id = payload?.id == null ? null : String(payload.id);
+  const row = id && messageRows.get(id);
+  if (!row || typeof payload.text !== "string") return;
+  const replacement = normalizeMessage({ ...row._message, text: payload.text, edited: true }, MAX_TEXT_LEN);
+  const next = buildChatRow(replacement);
+  row.replaceWith(next);
+  messageRows.set(id, next);
+}
+
+function applyMessageDelete(payload) {
+  const id = payload?.id == null ? null : String(payload.id);
+  const row = id && messageRows.get(id);
+  if (!row) return;
+  row.remove();
+  messageRows.delete(id);
+  if (editingMessageId === id) cancelEdit();
+}
+
 function setConnected(value) {
   connected = value;
   els.statusDot.classList.toggle("online", value);
   els.statusDot.title = value ? "Connected" : "Disconnected";
   els.input.disabled = !value;
   els.input.placeholder = value ? "Send a message" : "Reconnecting…";
-  if (!value) els.onlineCount.textContent = "–";
+  if (!value) {
+    els.onlineCount.textContent = "–";
+    presenceTracked = false;
+  }
 }
-
-// ---------------------------------------------------------------------------
-// Shared history — read once per launch, right after the first join.
-// ---------------------------------------------------------------------------
 
 async function loadHistory() {
   if (historyLoaded) return;
   historyLoaded = true;
   const { data, error } = await client
     .from("messages")
-    .select("username,text,created_at")
+    .select("id,username,text,client_id,created_at,edited_at")
     .order("id", { ascending: false })
     .limit(HISTORY_LIMIT);
   if (error || !data) {
@@ -136,12 +235,12 @@ async function loadHistory() {
   }
   if (data.length === 0) return;
 
-  // Oldest first, inserted ABOVE anything that already streamed in live.
   const fragment = document.createDocumentFragment();
-  for (const row of data.reverse()) {
-    fragment.appendChild(
-      buildChatRow(String(row.username).slice(0, 20), String(row.text).slice(0, MAX_TEXT_LEN), new Date(row.created_at))
-    );
+  for (const raw of data.reverse()) {
+    const message = normalizeMessage(raw, MAX_TEXT_LEN);
+    if (message && (!message.id || !messageRows.has(message.id))) {
+      fragment.appendChild(buildChatRow(message));
+    }
   }
   const divider = document.createElement("div");
   divider.className = "msg system";
@@ -152,14 +251,29 @@ async function loadHistory() {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
-function storeMessage(username, text) {
-  // Fire and forget: the broadcast already delivered it live.
-  client.from("messages").insert({ username, text }).then(() => {}, () => {});
-}
+async function storeMessage(username, text) {
+  const { data, error } = await client.rpc("create_message", {
+    p_username: username,
+    p_text: text,
+    p_client_id: config.clientId,
+    p_owner_token: config.ownerToken,
+  });
+  if (!error && Array.isArray(data) && data[0]) {
+    return { id: data[0].message_id, createdAt: data[0].message_created_at };
+  }
 
-// ---------------------------------------------------------------------------
-// Realtime
-// ---------------------------------------------------------------------------
+  // Existing self-hosted installations can keep chatting before re-running
+  // schema.sql; edit/delete become available after the migration.
+  const legacy = await client
+    .from("messages")
+    .insert({ username, text })
+    .select("id,created_at")
+    .single();
+  if (!legacy.error && legacy.data) {
+    return { id: legacy.data.id, createdAt: legacy.data.created_at, legacy: true };
+  }
+  return null;
+}
 
 function connect() {
   const url = config.supabaseUrl || DEFAULT_SUPABASE_URL;
@@ -171,32 +285,55 @@ function connect() {
   joinChannel();
 }
 
+function syncPresence(ch) {
+  if (ch !== channel) return;
+  const snapshot = presenceSnapshot(ch.presenceState());
+  onlineUsers.clear();
+  for (const username of snapshot.users) onlineUsers.add(username);
+  els.onlineCount.textContent = String(snapshot.count);
+  renderPeopleMenu();
+}
+
+async function updatePresence() {
+  if (!channel || !connected) return;
+  if (viewVisible && !presenceTracked) {
+    const result = await channel.track({ username: config.username, joinedAt: Date.now() });
+    presenceTracked = result === "ok";
+  } else if (!viewVisible && presenceTracked) {
+    await channel.untrack();
+    presenceTracked = false;
+  }
+}
+
 function joinChannel() {
   const ch = client.channel(CHANNEL_NAME, {
     config: {
-      broadcast: { self: true }, // our sends echo back → one render path
+      broadcast: { self: true },
       presence: { key: presenceKey },
     },
   });
   channel = ch;
 
   ch.on("broadcast", { event: "message" }, ({ payload }) => {
-    if (ch !== channel) return;
-    renderChat(payload);
+    if (ch === channel) renderChat(payload);
   });
-
-  ch.on("presence", { event: "sync" }, () => {
-    if (ch !== channel) return;
-    els.onlineCount.textContent = String(Object.keys(ch.presenceState()).length);
+  ch.on("broadcast", { event: "message_edit" }, ({ payload }) => {
+    if (ch === channel) applyMessageEdit(payload);
   });
+  ch.on("broadcast", { event: "message_delete" }, ({ payload }) => {
+    if (ch === channel) applyMessageDelete(payload);
+  });
+  ch.on("presence", { event: "sync" }, () => syncPresence(ch));
+  ch.on("presence", { event: "join" }, () => syncPresence(ch));
+  ch.on("presence", { event: "leave" }, () => syncPresence(ch));
 
   ch.subscribe(async (status) => {
     if (ch !== channel) return;
     if (status === "SUBSCRIBED") {
       setConnected(true);
-      await ch.track({ username: config.username, joinedAt: Date.now() });
+      await updatePresence();
       loadHistory();
-    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+    } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
       setConnected(false);
       scheduleRejoin();
     }
@@ -214,25 +351,69 @@ function scheduleRejoin() {
   }, REJOIN_DELAY_MS + Math.floor(Math.random() * 2000));
 }
 
-async function sendMessage(text) {
-  const resp = await channel.send({
-    type: "broadcast",
-    event: "message",
-    payload: { username: config.username, text, timestamp: Date.now() },
-  });
-  if (resp !== "ok") {
-    renderSystem("Message failed to send — try again.");
-    return;
-  }
-  storeMessage(config.username, text);
+async function broadcast(event, payload) {
+  if (!channel) return false;
+  return (await channel.send({ type: "broadcast", event, payload })) === "ok";
 }
 
-// ---------------------------------------------------------------------------
-// Setup + wiring
-// ---------------------------------------------------------------------------
+async function sendMessage(text) {
+  const stored = await storeMessage(config.username, text);
+  const payload = {
+    id: stored?.id,
+    username: config.username,
+    text,
+    clientId: stored?.legacy ? null : config.clientId,
+    timestamp: stored?.createdAt ? Date.parse(stored.createdAt) : Date.now(),
+  };
+  if (!(await broadcast("message", payload))) {
+    renderSystem("Message saved, but live delivery failed — reconnecting clients will still see it.");
+  }
+}
 
-function validUsername(name) {
-  return typeof name === "string" && name.length >= 2 && name.length <= 20;
+function beginEdit(id) {
+  const row = messageRows.get(String(id));
+  if (!row) return;
+  editingMessageId = String(id);
+  els.input.value = row._message.text;
+  els.editing.classList.remove("hidden");
+  els.input.focus();
+  els.input.setSelectionRange(els.input.value.length, els.input.value.length);
+}
+
+function cancelEdit() {
+  editingMessageId = null;
+  els.editing.classList.add("hidden");
+  els.input.value = "";
+}
+
+async function saveEdit(text) {
+  const id = editingMessageId;
+  const { data, error } = await client.rpc("edit_message", {
+    p_message_id: Number(id),
+    p_text: text,
+    p_owner_token: config.ownerToken,
+  });
+  if (error || data !== true) {
+    renderSystem("Could not edit that message.");
+    return;
+  }
+  cancelEdit();
+  applyMessageEdit({ id, text });
+  await broadcast("message_edit", { id, text, editedAt: Date.now() });
+}
+
+async function deleteMessage(id) {
+  if (!window.confirm("Delete this message for everyone?")) return;
+  const { data, error } = await client.rpc("delete_message", {
+    p_message_id: Number(id),
+    p_owner_token: config.ownerToken,
+  });
+  if (error || data !== true) {
+    renderSystem("Could not delete that message.");
+    return;
+  }
+  applyMessageDelete({ id: String(id) });
+  await broadcast("message_delete", { id: String(id) });
 }
 
 function submitSetup() {
@@ -249,13 +430,61 @@ function submitSetup() {
   connect();
 }
 
-els.setupSave.addEventListener("click", submitSetup);
-els.setup.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") submitSetup();
-});
+function closePickers() {
+  els.peopleMenu.classList.add("hidden");
+  els.emojiMenu.classList.add("hidden");
+  els.mention.setAttribute("aria-expanded", "false");
+  els.emoji.setAttribute("aria-expanded", "false");
+}
 
-// Anti-spam token bucket: a short burst is fine, sustained spam is not.
-let sendTokens = 5, sendRefill = Date.now();
+function togglePicker(target, button) {
+  const opening = target.classList.contains("hidden");
+  closePickers();
+  target.classList.toggle("hidden", !opening);
+  button.setAttribute("aria-expanded", String(opening));
+}
+
+function renderPeopleMenu() {
+  els.peopleMenu.replaceChildren();
+  const users = [...onlineUsers].filter((name) => name !== config.username).sort();
+  if (!users.length) {
+    const empty = document.createElement("span");
+    empty.className = "empty";
+    empty.textContent = "No one else is active right now.";
+    els.peopleMenu.appendChild(empty);
+    return;
+  }
+  for (const username of users) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `@${username}`;
+    button.addEventListener("click", () => mentionUser(username));
+    els.peopleMenu.appendChild(button);
+  }
+}
+
+for (const emoji of EMOJIS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = emoji;
+  button.addEventListener("click", () => {
+    insertAtCursor(emoji);
+    closePickers();
+  });
+  els.emojiMenu.appendChild(button);
+}
+
+els.setupSave.addEventListener("click", submitSetup);
+els.setup.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") submitSetup();
+});
+els.invite.addEventListener("click", () => vscodeApi.postMessage({ type: "copyInvite" }));
+els.mention.addEventListener("click", () => togglePicker(els.peopleMenu, els.mention));
+els.emoji.addEventListener("click", () => togglePicker(els.emojiMenu, els.emoji));
+els.cancelEdit.addEventListener("click", cancelEdit);
+
+let sendTokens = 5;
+let sendRefill = Date.now();
 function throttleOk() {
   const now = Date.now();
   sendTokens = Math.min(5, sendTokens + (now - sendRefill) / 2000);
@@ -265,25 +494,42 @@ function throttleOk() {
   return true;
 }
 
-els.composer.addEventListener("submit", (e) => {
-  e.preventDefault();
+els.composer.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  closePickers();
   const text = els.input.value.trim().slice(0, MAX_TEXT_LEN);
   if (!text || !connected || !channel) return;
-  if (!throttleOk()) { renderSystem("slow down — you're sending too fast"); return; }
+  if (editingMessageId) {
+    await saveEdit(text);
+    return;
+  }
+  if (!throttleOk()) {
+    renderSystem("slow down — you're sending too fast");
+    return;
+  }
   els.input.value = "";
-  sendMessage(text);
+  await sendMessage(text);
 });
 
-window.addEventListener("message", (event) => {
+window.addEventListener("message", async (event) => {
   const msg = event.data;
-  if (msg.type !== "config") return;
-  config = msg.config || {};
-  if (validUsername(config.username)) {
-    connect();
-  } else {
-    els.setup.classList.remove("hidden");
-    els.setupUsername.focus();
+  if (msg.type === "config") {
+    config = msg.config || {};
+    if (validUsername(config.username)) connect();
+    else {
+      els.setup.classList.remove("hidden");
+      els.setupUsername.focus();
+    }
+  } else if (msg.type === "visibility") {
+    viewVisible = Boolean(msg.visible);
+    await updatePresence();
+  } else if (msg.type === "inviteCopied") {
+    renderSystem(`Invite link copied: ${INVITE_URL}`);
   }
+});
+
+window.addEventListener("pagehide", () => {
+  if (channel && presenceTracked) channel.untrack();
 });
 
 vscodeApi.postMessage({ type: "ready" });

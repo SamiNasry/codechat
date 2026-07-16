@@ -13,6 +13,10 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node --check extension.js && node --check media/chat-utils.js && node --check media/chat.js"
+  },
   "categories": [
     "Other"
   ],

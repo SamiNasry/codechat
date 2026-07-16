@@ -35,6 +35,12 @@ curl -L https://github.com/SamiNasry/codechat/releases/latest/download/codechat.
 Click the CodeChat bubble in the sidebar. Same room, same name (it reads the same
 `~/.codechat/config.json`), and it works on Windows too, no tmux needed.
 
+The VS Code sidebar also includes an online-user mention menu, a small emoji
+picker, a one-click invite link, and edit/delete controls on messages sent by
+this installation. Terminal clients highlight messages that mention their
+username and reflect edits or deletions in real time; Unicode emoji can be typed
+or pasted directly into the input.
+
 ## Good to know
 
 - It's **one public room**: anyone can read and write, so don't paste secrets or
@@ -43,6 +49,11 @@ Click the CodeChat bubble in the sidebar. Same room, same name (it reads the sam
   `claude --chat-only`.
 - New joiners see the last 50 messages. Everything renders as plain text, so
   nothing can run on your machine.
+- The online count represents clients actively showing the chat. Hiding the VS
+  Code sidebar removes that client from presence until it is shown again.
+- There are still no accounts. A random owner token in
+  `~/.codechat/config.json` authorizes edits and deletions from that installation;
+  keep the file private. Removing it also removes access to those message controls.
 - Want to watch it move on your own? Open another terminal: `codechat-tui --username somebody`.
 
 ## Under the hood
@@ -52,10 +63,31 @@ A bash wrapper makes the tmux split and passes every argument through to the rea
 everyone connects to one Supabase Realtime channel. The backend URL and
 publishable key are baked in. A publishable key is an address, not a secret.
 
-Build it yourself with `cd tui && cargo build --release`. Want your own private
-room? Point the `DEFAULT_SUPABASE_*` constants in `tui/src/main.rs` at a free
-Supabase project, run `supabase/schema.sql` once in the SQL editor, and tag a
-release.
+Build it yourself with Rust 1.88 or newer using
+`cd tui && cargo build --release`. Want your own private room? Point the
+`DEFAULT_SUPABASE_*` constants in `tui/src/main.rs` at a free
+Supabase project, run `supabase/schema.sql` in the SQL editor, and tag a release.
+Re-run the schema after upgrading an existing installation: it is idempotent and
+adds the owner-authorized message functions without exposing owner tokens through
+the public table API. Older clients remain able to read and post messages.
+
+## Development checks
+
+The VS Code client keeps its checks dependency-free:
+
+```bash
+cd vscode
+npm test
+npm run check
+```
+
+For the terminal client:
+
+```bash
+cd tui
+cargo fmt --check
+cargo test
+```
 
 ## License
 

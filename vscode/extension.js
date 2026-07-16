@@ -6,6 +6,7 @@
 // webview (media/chat.js).
 
 const vscode = require("vscode");
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -14,10 +15,25 @@ const CONFIG_PATH = path.join(os.homedir(), ".codechat", "config.json");
 
 function loadConfig() {
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    return ensureIdentity(config);
   } catch {
-    return {};
+    return ensureIdentity({});
   }
+}
+
+function ensureIdentity(config) {
+  let changed = false;
+  if (!config.clientId) {
+    config.clientId = crypto.randomUUID();
+    changed = true;
+  }
+  if (!config.ownerToken) {
+    config.ownerToken = crypto.randomBytes(32).toString("hex");
+    changed = true;
+  }
+  if (changed) saveConfig(config);
+  return config;
 }
 
 function saveConfig(config) {
@@ -42,13 +58,21 @@ class ChatViewProvider {
     };
     view.webview.html = this.html(view.webview);
 
-    view.webview.onDidReceiveMessage((msg) => {
+    const sendVisibility = () =>
+      view.webview.postMessage({ type: "visibility", visible: view.visible });
+    view.onDidChangeVisibility(sendVisibility);
+
+    view.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === "ready") {
         view.webview.postMessage({ type: "config", config: loadConfig() });
+        sendVisibility();
       } else if (msg.type === "saveUsername") {
         const config = loadConfig();
         config.username = msg.username;
         saveConfig(config);
+      } else if (msg.type === "copyInvite") {
+        await vscode.env.clipboard.writeText("https://codechat.live");
+        view.webview.postMessage({ type: "inviteCopied" });
       }
     });
   }
@@ -73,6 +97,7 @@ class ChatViewProvider {
   <div id="app">
     <header>
       <span class="title">CodeChat</span>
+      <button id="invite" class="icon-button" title="Copy invite link" aria-label="Copy invite link">↗</button>
       <span id="status-dot" class="dot" title="Disconnected"></span>
       <span id="online-count" title="Users online">–</span>
     </header>
@@ -84,10 +109,18 @@ class ChatViewProvider {
     </div>
     <main id="messages"></main>
     <form id="composer">
-      <input id="input" type="text" maxlength="300" placeholder="Send a message" autocomplete="off" spellcheck="false" disabled />
+      <div id="editing" class="hidden"><span>Editing message</span><button id="cancel-edit" type="button">Cancel</button></div>
+      <div id="composer-row">
+        <button id="mention" class="icon-button" type="button" title="Mention someone" aria-label="Mention someone">@</button>
+        <button id="emoji" class="icon-button" type="button" title="Add emoji" aria-label="Add emoji">😊</button>
+        <input id="input" type="text" maxlength="300" placeholder="Send a message" autocomplete="off" spellcheck="false" disabled />
+      </div>
+      <div id="people-menu" class="picker hidden" role="menu"></div>
+      <div id="emoji-menu" class="picker hidden" role="menu"></div>
     </form>
   </div>
   <script src="${uri("supabase.js")}"></script>
+  <script src="${uri("chat-utils.js")}"></script>
   <script src="${uri("chat.js")}"></script>
 </body>
 </html>`;
