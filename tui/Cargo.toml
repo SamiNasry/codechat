@@ -3,7 +3,7 @@ name = "codechat-tui"
 version = "0.1.2"
 description = "CodeChat — the worldwide chat pane for Claude Code (runs inside tmux)"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.88"
 
 [dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
